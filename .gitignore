@@ -133,3 +133,5 @@ dmypy.json
 
 # Keys
 *.json
+
+cimis_tools/ancillary
