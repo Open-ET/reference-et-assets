@@ -4,6 +4,7 @@
 #--------------------------------
 
 import argparse
+import datetime
 import logging
 import math
 import os
@@ -12,6 +13,7 @@ import shutil
 import time
 import zipfile
 
+import ee
 from google.cloud import storage
 import numpy as np
 # from osgeo import gdal, ogr, osr
@@ -24,7 +26,10 @@ import requests
 #   Haven't checked to see if there is a rasterio approach
 # import gdal_common as gdc
 
+logging.getLogger('earthengine-api').setLevel(logging.INFO)
 logging.getLogger('googleapiclient').setLevel(logging.ERROR)
+logging.getLogger('requests').setLevel(logging.INFO)
+logging.getLogger('urllib3').setLevel(logging.INFO)
 
 PROJECT_NAME = 'openet'
 BUCKET_NAME = 'openet'
@@ -266,6 +271,37 @@ def main(ancillary_ws, overwrite_flag=False):
 
         if os.path.isdir(temp_ws):
             shutil.rmtree(temp_ws)
+
+
+    # Ingest into Earth Engine
+    # DEADBEEF - For now, assume the file is in the bucket
+    logging.info('\nIngesting into Earth Engine')
+    ee.Initialize()
+    asset_params = [
+        # ['projects/earthengine-legacy/assets/projects/openet/reference_et/cimis/elevation',
+        #  f'gs://{BUCKET_NAME}/{BUCKET_FOLDER}/{os.path.basename(elev_raster)}', 'elev', 'mn30_grd'],
+        ['projects/earthengine-legacy/assets/projects/openet/reference_et/cimis/latitude',
+         f'gs://{BUCKET_NAME}/{BUCKET_FOLDER}/{os.path.basename(lat_raster)}', 'latitude', ''],
+        ['projects/earthengine-legacy/assets/projects/openet/reference_et/cimis/mask',
+         f'gs://{BUCKET_NAME}/{BUCKET_FOLDER}/{os.path.basename(mask_raster)}', 'mask', ''],
+    ]
+    for asset_id, bucket_path, variable, source in asset_params:
+        logging.info(variable)
+        task_id = ee.data.newTaskId()[0]
+        logging.debug(f'  {task_id}')
+        params = {
+            'name': asset_id,
+            'bands': [{'id': variable, 'tilesetId': 'image', 'tilesetBandIndex': 0}],
+            'tilesets': [{'id': 'image', 'sources': [{'uris': [bucket_path]}]}],
+            'properties': {
+                'date_ingested': f'{datetime.datetime.today().strftime("%Y-%m-%d")}',
+            },
+            # 'pyramiding_policy': 'MEAN',
+            # 'missingData': {'values': [nodata_value]},
+        }
+        if source:
+            params['properties']['source'] = source
+        ee.data.startIngestion(task_id, params, allow_overwrite=True)
 
     logging.debug('\nScript Complete')
 

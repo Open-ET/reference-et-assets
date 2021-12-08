@@ -1,0 +1,18 @@
+name: reference-et-assets
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - earthengine-api=0.1.290
+  - flask
+  - google-cloud-storage
+  - numpy
+  - pip
+  - python=3.7
+  - python-dateutil
+  - rasterio
+  - requests
+  - scipy
+  - pip:
+    - google-cloud-tasks
+    - refet=0.3.10
