@@ -75,28 +75,28 @@ echo %GOOGLE_APPLICATION_CREDENTIALS%
 
 The following are the parameters that were set when deploying the function for the first time.  Subsequent deployments only need the project if not set above.
 ```
-gcloud functions deploy cimis-daily-scheduler --project openet --runtime python37 --entry-point cron_scheduler --trigger-http --allow-unauthenticated --memory 512 --timeout 120 --max-instances 1
-gcloud functions deploy cimis-daily-worker --project openet --runtime python37 --entry-point cron_worker --trigger-http --allow-unauthenticated --memory 512 --timeout 120 --max-instances 1
+gcloud functions deploy cimis-reference-et-daily-scheduler --project openet --runtime python37 --entry-point cron_scheduler --trigger-http --allow-unauthenticated --memory 512 --timeout 120 --max-instances 1
+gcloud functions deploy cimis-reference-et-daily-worker --project openet --runtime python37 --entry-point cron_worker --trigger-http --allow-unauthenticated --memory 512 --timeout 120 --max-instances 1
 ```
 
 ### Calling the cloud function
 
 The functions can be called by passing JSON data to the function.
 ```
-gcloud functions call cimis-daily-worker --project openet --data '{"date":"2020-09-01"}'
-gcloud functions call cimis-daily-scheduler --project openet --data '{"start":"2020-11-01","end":"2020-11-05"}'
-gcloud functions call cimis-daily-scheduler --project openet --data '{"days":"60"}'
+gcloud functions call cimis-reference-et-daily-worker --project openet --data '{"date":"2020-09-01"}'
+gcloud functions call cimis-reference-et-daily-scheduler --project openet --data '{"start":"2020-11-01","end":"2020-11-05"}'
+gcloud functions call cimis-reference-et-daily-scheduler --project openet --data '{"days":"60"}'
 ```
 
 If no arguments are passed to the scheduler it will check the last year for missing assets.
 ```
-gcloud functions call cimis-daily-scheduler --project openet
+gcloud functions call cimis-reference-et-daily-scheduler --project openet
 ```
 
 ### Scheduling the job
 
 ```
-gcloud scheduler jobs create http cimis-daily --schedule "5 12 * * *" --uri "https://us-central1-openet.cloudfunctions.net/cimis-daily-scheduler?days=60" --description "Spatial CIMIS Daily Assets" --http-method POST --time-zone "UTC" --max-retry-attempts 5 --attempt-deadline 120s
+gcloud scheduler jobs update http cimis-reference-et-daily --schedule "5 12 * * *" --uri "https://us-central1-openet.cloudfunctions.net/cimis-reference-et-daily-scheduler?days=60" --description "Spatial CIMIS Daily Assets" --http-method POST --time-zone "UTC" --max-retry-attempts 5 --attempt-deadline 120s
 ```
 
 ### Create tasks queue

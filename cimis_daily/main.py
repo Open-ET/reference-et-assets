@@ -37,6 +37,7 @@ GEE_KEY_FILE = 'openet-gee.json'
 PROJECT_NAME = 'openet'
 SOURCE_URL = 'https://spatialcimis.water.ca.gov/cimis'
 # This server stopped updating in 2019 but is useful for filling in missing dates
+#   specifically 2003-10-01 to 2003-12-31 and 2010-11-16 to 2010-11-23
 # SOURCE_URL = 'http://cimis.casil.ucdavis.edu/cimis'
 STORAGE_CLIENT = storage.Client(project=PROJECT_NAME)
 TASK_LOCATION = 'us-central1'
@@ -422,7 +423,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
 
     properties = {
         'date_ingested': f'{datetime.datetime.today().strftime("%Y-%m-%d")}',
-        'source': SOURCE_URL.replace('https://', ''),
+        'source': SOURCE_URL.replace('https://', '').replace('http://', ''),
     }
     if 'eto_asce' in variables or 'etr_asce' in variables:
         properties['refet_version'] = f'{refet.__version__}'

@@ -11,15 +11,10 @@ import zipfile
 import ee
 from google.cloud import storage
 import numpy as np
-# from osgeo import gdal, ogr, osr
 import rasterio
 import rasterio.crs
 import rasterio.warp
 import requests
-
-# CGM - Used to generate projected lat/lon arrays
-#   Haven't checked to see if there is a rasterio approach
-# import gdal_common as gdc
 
 logging.getLogger('earthengine-api').setLevel(logging.INFO)
 logging.getLogger('googleapiclient').setLevel(logging.ERROR)

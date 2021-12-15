@@ -51,13 +51,11 @@ def main(variables, overwrite_flag=False, gee_key_file=None, ingest_flag=True):
     """
     logging.info('\nInterpolate missing CIMIS multi-band images')
 
-    # CGM - Check if 2018-02-23 still needs to be interpolated
     missing_dt_list = [
         # '2021-01-14',
-        '2019-04-26',
-        '2019-12-24', '2019-12-25', '2019-12-26',
+        # '2019-04-26',
+        # '2019-12-24', '2019-12-25', '2019-12-26',
         # '2019-06-13'
-        # # '2018-02-23', # This one has data on the website
     ]
     missing_dt_list = [
         datetime.datetime.strptime(date, '%Y-%m-%d')
