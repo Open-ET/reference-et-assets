@@ -1,12 +1,12 @@
 import argparse
 import datetime as dt
 import logging
-import os
 
 import ee
 
 
 def main(start_dt, end_dt, overwrite_flag=False):
+    """"""
     logging.info('\nMirroring CIMIS asset to new collection')
     input_coll_id = 'projects/climate-engine/cimis/daily'
     output_coll_id = 'projects/openet/reference_et/cimis/daily'
@@ -106,10 +106,10 @@ def arg_parse():
         description='Mirror CIMIS image collection',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '-s', '--start', type=valid_date, metavar='DATE',
+        '--start', type=valid_date, metavar='DATE',
         default='2003-10-01', help='Start date (format YYYY-MM-DD)')
     parser.add_argument(
-        '-e', '--end', type=valid_date, metavar='DATE',
+        '--end', type=valid_date, metavar='DATE',
         default=(dt.datetime.today()-dt.timedelta(days=0)).strftime('%Y-%m-%d'),
         help='End date (format YYYY-MM-DD)')
     # parser.add_argument(

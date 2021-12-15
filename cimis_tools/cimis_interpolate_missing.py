@@ -1,8 +1,3 @@
-#--------------------------------
-# Name:         cimis_interpolate_missing.py
-# Purpose:      Interpolate missing CIMIS multi-band images
-#--------------------------------
-
 import argparse
 import datetime
 import logging
@@ -13,15 +8,19 @@ import sys
 import time
 
 import ee
-from osgeo import osr
-# import rasterio
+# from osgeo import osr
 
-logging.getLogger('googleapiclient').setLevel(logging.ERROR)
+# logging.getLogger('earthengine-api').setLevel(logging.INFO)
+# logging.getLogger('googleapiclient').setLevel(logging.ERROR)
+logging.getLogger('requests').setLevel(logging.INFO)
+logging.getLogger('urllib3').setLevel(logging.INFO)
 
 ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
                 'projects/openet/reference_et/cimis/daily'
 ASSET_DT_FMT = '%Y%m%d'
-
+# VARIABLES = ['eto']
+VARIABLES = ['eto', 'eto_asce', 'etr_asce']
+# VARIABLES = ['Tdew', 'Tx', 'Tn', 'Rnl', 'Rs', 'K', 'U2', 'ETo', 'ETo_ASCE', 'ETr_ASCE']
 
 
 def main(variables, overwrite_flag=False, gee_key_file=None, ingest_flag=True):
@@ -31,8 +30,6 @@ def main(variables, overwrite_flag=False, gee_key_file=None, ingest_flag=True):
     ----------
     variables : str
         Variables to process.
-        Choices are: 'Tdew', 'Tx', 'Tn', 'Rnl', 'Rs', 'Rso', 'K', 'U2',
-                     'ETo', 'ETo_ASCE', 'ETr_ASCE'.
     overwrite_flag : bool, optional
         If True, overwrite existing files (the default is False).
     gee_key_file : str, optional
@@ -46,7 +43,8 @@ def main(variables, overwrite_flag=False, gee_key_file=None, ingest_flag=True):
 
     Notes
     -----
-    http://cimis.casil.ucdavis.edu/cimis/
+    https://spatialcimis.water.ca.gov/cimis/
+    https://cimis.casil.ucdavis.edu/cimis/ (stopped updating in 2019)
     CIMIS ETo data starts: 2003-03-20
     Full parameters start: 2003-10-01 (water year 2004)
 
@@ -55,9 +53,9 @@ def main(variables, overwrite_flag=False, gee_key_file=None, ingest_flag=True):
 
     # CGM - Check if 2018-02-23 still needs to be interpolated
     missing_dt_list = [
-        '2021-01-14',
-        # '2019-04-26',
-        # '2019-12-24', '2019-12-25', '2019-12-26',
+        # '2021-01-14',
+        '2019-04-26',
+        '2019-12-24', '2019-12-25', '2019-12-26',
         # '2019-06-13'
         # # '2018-02-23', # This one has data on the website
     ]
@@ -84,15 +82,34 @@ def main(variables, overwrite_flag=False, gee_key_file=None, ingest_flag=True):
     asset_geo_str = '[' + ','.join(list(map(str, asset_geo))) + ']'
 
     # Spatial reference parameters
-    asset_proj4 = (
-        '+proj=aea +lat_1=34 +lat_2=40.5 +lat_0=0 +lon_0=-120 ' +
-        '+x_0=0 +y_0=-4000000 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
-    asset_osr = osr.SpatialReference()
-    asset_osr.ImportFromProj4(asset_proj4)
-    # asset_epsg = 3310  # NAD_1983_California_Teale_Albers
-    # asset_osr = gdc.epsg_osr(cimis_epsg)
-    # asset_osr.MorphToESRI()
-    asset_proj = asset_osr.ExportToWkt()
+    # This WKT was build using the OSR calls commented out below
+    asset_proj = (
+        'PROJCS["unknown",'
+        'GEOGCS["unknown",DATUM["North_American_Datum_1983",'
+        'SPHEROID["GRS 1980",6378137,298.257222101,AUTHORITY["EPSG","7019"]],'
+        'AUTHORITY["EPSG","6269"]],'
+        'PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],'
+        'UNIT["degree",0.0174532925199433,'
+        'AUTHORITY["EPSG","9122"]]],'
+        'PROJECTION["Albers_Conic_Equal_Area"],'
+        'PARAMETER["latitude_of_center",0],'
+        'PARAMETER["longitude_of_center",-120],'
+        'PARAMETER["standard_parallel_1",34],'
+        'PARAMETER["standard_parallel_2",40.5],'
+        'PARAMETER["false_easting",0],'
+        'PARAMETER["false_northing",-4000000],'
+        'UNIT["metre",1,AUTHORITY["EPSG","9001"]],'
+        'AXIS["Easting",EAST],AXIS["Northing",NORTH]]'
+    )
+    # asset_proj4 = (
+    #     '+proj=aea +lat_1=34 +lat_2=40.5 +lat_0=0 +lon_0=-120 ' +
+    #     '+x_0=0 +y_0=-4000000 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
+    # asset_osr = osr.SpatialReference()
+    # asset_osr.ImportFromProj4(asset_proj4)
+    # # asset_epsg = 3310  # NAD_1983_California_Teale_Albers
+    # # asset_osr = gdc.epsg_osr(cimis_epsg)
+    # # asset_osr.MorphToESRI()
+    # asset_proj = asset_osr.ExportToWkt()
 
     # Initialize Earth Engine
     logging.info('\nInitializing Earth Engine')
@@ -325,11 +342,7 @@ def arg_parse():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-v', '--variables', nargs='+', metavar='VAR',
-        default=['Tdew', 'Tx', 'Tn', 'Rnl', 'Rs', 'K', 'U2',
-                 'ETo', 'ETo_ASCE', 'ETr_ASCE'],
-        choices=['Tdew', 'Tx', 'Tn', 'Rnl', 'Rs', 'K', 'U2',
-                 'ETo', 'ETo_ASCE', 'ETr_ASCE'],
-        help='CIMIS daily variables')
+        default=VARIABLES, choices=VARIABLES, help='CIMIS daily variables')
     parser.add_argument(
         '--overwrite', default=False, action='store_true',
         help='Force overwrite of existing files')

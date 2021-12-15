@@ -1,4 +1,5 @@
 import argparse
+from calendar import monthrange
 import datetime
 import logging
 import os
@@ -9,18 +10,26 @@ from dateutil.relativedelta import relativedelta
 import ee
 from flask import abort, Response
 
-# import openet.core.utils as utils
-
-logging.getLogger('googleapiclient').setLevel(logging.ERROR)
+# logging.getLogger('earthengine-api').setLevel(logging.INFO)
+# logging.getLogger('googleapiclient').setLevel(logging.ERROR)
+logging.getLogger('requests').setLevel(logging.INFO)
+logging.getLogger('urllib3').setLevel(logging.INFO)
 
 ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
                  'projects/openet/reference_et/cimis/monthly'
 ASSET_DT_FMT = '%Y%m'
 GEE_KEY_FILE = 'openet-gee.json'
 SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                 'projects/climate-engine/cimis/daily'
+                 'projects/openet/reference_et/cimis/daily'
 START_MONTH_OFFSET = 1
 END_MONTH_OFFSET = 0
+# CGM - The "eto" and "eto_asce" bands in CIMIS can be slightly different
+# The models are currently using the "eto_asce" band, not "eto",
+#   so we may want to build the monthly collection using that band also
+INPUT_BANDS = ['eto']
+OUTPUT_BANDS = ['eto']
+# INPUT_BANDS = ['eto_asce', 'etr_asce']
+# OUTPUT_BANDS = ['eto', 'etr']
 
 
 def cimis_monthly_ingest(tgt_dt, overwrite_flag=False,
@@ -53,13 +62,23 @@ def cimis_monthly_ingest(tgt_dt, overwrite_flag=False,
     logging.debug(f'  {export_name}')
 
     # TODO: Move to config.py
-    logging.debug('\nInitializing Earth Engine')
     if user_credentials_flag:
-        logging.debug('  Using user GEE credentials')
+        logging.debug('\nInitializing GEE using user credentials')
         ee.Initialize()
-    elif os.path.isfile(GEE_KEY_FILE):
-        logging.debug(f'  Using service account key file: {GEE_KEY_FILE}')
-        ee.Initialize(ee.ServiceAccountCredentials('', key_file=GEE_KEY_FILE))
+    elif GEE_KEY_FILE and os.path.isfile(GEE_KEY_FILE):
+        logging.debug(f'\nInitializing GEE using user key file: {GEE_KEY_FILE}')
+        try:
+            ee.Initialize(ee.ServiceAccountCredentials('_', key_file=GEE_KEY_FILE))
+        except ee.ee_exception.EEException:
+            logging.warning('Unable to initialize GEE using user key file')
+            return False
+    # elif 'FUNCTION_REGION' in os.environ:
+    #     # Assume code is deployed to a cloud function
+    #     logging.debug(f'\nInitializing GEE using application default credentials')
+    #     import google.auth
+    #     credentials, project_id = google.auth.default(
+    #         default_scopes=['https://www.googleapis.com/auth/earthengine'])
+    #     ee.Initialize(credentials)
     else:
         raise Exception('EE not initialized')
 
@@ -92,17 +111,26 @@ def cimis_monthly_ingest(tgt_dt, overwrite_flag=False,
     #         '+x_0=0 +y_0=-4000000 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
     # asset_proj = 'EPSG:3310'  # NAD_1983_California_Teale_Albers
 
-    output_img = ee.ImageCollection(SOURCE_COLL_ID)\
+    source_coll = ee.ImageCollection(SOURCE_COLL_ID)\
         .filterDate(tgt_dt, tgt_dt + relativedelta(months=1))\
-        .select(['ETo_ASCE', 'ETr_ASCE'])\
-        .sum()\
-        .rename(['eto', 'etr'])\
+        .select(INPUT_BANDS)
+
+    # TODO: Decide if the scheduler should be responsible for checking if there
+    #   are enough source images
+    # TODO: Wrap getInfo call in a try/except loop
+    source_count = source_coll.size().getInfo()
+    if source_count != monthrange(tgt_dt.year, tgt_dt.month)[1]:
+        return f'{export_name} - too few source images ({source_count}) for month\n'
+
+    output_img = source_coll.sum()\
+        .rename(OUTPUT_BANDS)\
         .set({
             'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
             # 'scale_factor': 1.0,
             'scale_factor_et_reference': 1.0,
             'scale_factor_eto': 1.0,
             'scale_factor_etr': 1.0,
+            'source_bands': ','.join(INPUT_BANDS),
             # CGM: Should we use the UTC 0 time_start or the CIMIS time_start?
             'system:time_start': ee.Date(tgt_dt.strftime('%Y-%m-%d')).millis(),
             'system:index': tgt_dt.strftime(ASSET_DT_FMT),
@@ -188,8 +216,8 @@ def cron_scheduler(request):
             abort(404, description=response)
 
         # Force end date to be last day of previous month
-        end_dt = min(
-            end_dt, datetime.datetime.today() - datetime.timedelta(days=1))
+        end_dt = min(end_dt,
+                     datetime.datetime.today() - datetime.timedelta(days=1))
 
         # TODO: Force start date to be at least one month before end
         # start_dt = min(
@@ -230,14 +258,24 @@ def cimis_monthly_dates(start_dt, end_dt, overwrite_flag=False,
     logging.debug('{}'.format(start_dt.strftime('%Y-%m-%d')))
     logging.debug('{}'.format(end_dt.strftime('%Y-%m-%d')))
 
-    # TODO: Move to config.py
-    logging.debug('\nInitializing Earth Engine')
+    # TODO: Move to config.py?
     if user_credentials_flag:
-        logging.debug('  Using user GEE credentials')
+        logging.debug('\nInitializing GEE using user credentials')
         ee.Initialize()
-    elif os.path.isfile(GEE_KEY_FILE):
-        logging.debug(f'  Using service account key file: {GEE_KEY_FILE}')
-        ee.Initialize(ee.ServiceAccountCredentials('', key_file=GEE_KEY_FILE))
+    elif GEE_KEY_FILE and os.path.isfile(GEE_KEY_FILE):
+        logging.debug(f'\nInitializing GEE using user key file: {GEE_KEY_FILE}')
+        try:
+            ee.Initialize(ee.ServiceAccountCredentials('_', key_file=GEE_KEY_FILE))
+        except ee.ee_exception.EEException:
+            logging.warning('Unable to initialize GEE using user key file')
+            return False
+    # elif 'FUNCTION_REGION' in os.environ:
+    #     # Assume code is deployed to a cloud function
+    #     logging.debug(f'\nInitializing GEE using application default credentials')
+    #     import google.auth
+    #     credentials, project_id = google.auth.default(
+    #         default_scopes=['https://www.googleapis.com/auth/earthengine'])
+    #     ee.Initialize(credentials)
     else:
         raise Exception('EE not initialized')
 
@@ -306,6 +344,9 @@ def cimis_monthly_dates(start_dt, end_dt, overwrite_flag=False,
         return []
     logging.debug('\nDates (after filtering existing assets): {}'.format(
         ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), test_dt_list))))
+
+    # TODO: Should the source collection be checked here to see if there are
+    #   enough images?
 
     return test_dt_list
 

@@ -36,12 +36,15 @@ FUNCTION_NAME = 'cimis-daily-worker'
 GEE_KEY_FILE = 'openet-gee.json'
 PROJECT_NAME = 'openet'
 SOURCE_URL = 'https://spatialcimis.water.ca.gov/cimis'
-# SOURCE_URL = 'http://cimis.casil.ucdavis.edu/cimis' # Stopped updating in 2019
+# This server stopped updating in 2019 but is useful for filling in missing dates
+# SOURCE_URL = 'http://cimis.casil.ucdavis.edu/cimis'
 STORAGE_CLIENT = storage.Client(project=PROJECT_NAME)
 TASK_LOCATION = 'us-central1'
 TASK_QUEUE = 'ee-single-worker'
-VARIABLES = ['Tdew', 'Tx', 'Tn', 'Rnl', 'Rs', 'K', 'U2',
-             'ETo', 'ETo_ASCE', 'ETr_ASCE']
+# VARIABLES = ['eto']
+VARIABLES = ['eto', 'eto_asce', 'etr_asce']
+# VARIABLES = ['Tdew', 'Tx', 'Tn', 'Rnl', 'Rs', 'K', 'U2',
+#              'eto', 'eto_asce', 'etr_asce']
 START_DAY_OFFSET = 365
 END_DAY_OFFSET = 0
 
@@ -91,9 +94,9 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
     # Define which CIMIS variables are needed for each user variable
     # ASCE ETo/ETr are computed from the components
     gz_vars = {
-        'ETo_ASCE': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
-        'ETr_ASCE': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
-        'ETo': ['ETo'],
+        'eto_asce': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
+        'etr_asce': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
+        'eto': ['ETo'],
         'K': ['K'],
         'Rnl': ['Rnl'],
         'Rs': ['Rs'],
@@ -106,7 +109,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
     # Define mapping of CIMIS variables to output file names
     # For now, these need to be identical to the user variable names
     gz_remap = {
-        'ETo': 'ETo',
+        'ETo': 'eto',
         'K': 'K',
         'Rnl': 'Rnl',
         'Rs': 'Rs',
@@ -123,10 +126,10 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
     land_mask_url = 'https://storage.googleapis.com/openet/cimis/cimis_mask.tif'
     latitude_url = 'https://storage.googleapis.com/openet/cimis/cimis_lat.tif'
     # longitude_url = 'https://storage.googleapis.com/openet/cimis/cimis_lon.tif'
-    elevation_path = os.path.join(workspace, 'cimis_elev.tif')
-    land_mask_path = os.path.join(workspace, 'cimis_mask.tif')
-    latitude_path = os.path.join(workspace, 'cimis_lat.tif')
-    # longitude_path = os.path.join(workspace, 'cimis_lon.tif')
+    elevation_path = os.path.join(date_ws, 'cimis_elev.tif')
+    land_mask_path = os.path.join(date_ws, 'cimis_mask.tif')
+    latitude_path = os.path.join(date_ws, 'cimis_lat.tif')
+    # longitude_path = os.path.join(date_ws, 'cimis_lon.tif')
 
     # DEADBEEF
     # # There is only partial CIMIS data before 2003-10-01
@@ -149,8 +152,8 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
     if user_credentials_flag:
         logging.debug('\nInitializing GEE using user credentials')
         ee.Initialize()
-    elif os.path.isfile(GEE_KEY_FILE):
-        logging.info(f'\nInitializing GEE using user key file: {GEE_KEY_FILE}')
+    elif GEE_KEY_FILE and os.path.isfile(GEE_KEY_FILE):
+        logging.debug(f'\nInitializing GEE using user key file: {GEE_KEY_FILE}')
         try:
             ee.Initialize(ee.ServiceAccountCredentials('_', key_file=GEE_KEY_FILE))
         except ee.ee_exception.EEException:
@@ -216,7 +219,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
     input_vars = set(gz_name.split('.')[0] for gz_name in os.listdir(date_ws))
     if not set(gz_var_list).issubset(input_vars):
         return f'{tgt_date} - Missing input variables for composite\n'\
-               f'  {", ".join(list(set(variables) - input_vars))}'
+               f'    {", ".join(list(set(variables) - input_vars))}\n'
 
     # Assume the ancillary data was prepped separately
     url_download(land_mask_url, land_mask_path)
@@ -245,7 +248,11 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
 
         logging.debug(f'  Uncompressing ASC GZ file')
         try:
-            input_f = gzip.open(gz_path, 'rb')
+            if SOURCE_URL == 'https://spatialcimis.water.ca.gov/cimis':
+                input_f = gzip.open(gz_path, 'rb')
+            elif SOURCE_URL == 'http://cimis.casil.ucdavis.edu/cimis':
+                # The asc.gz files on this server are not actually compressed
+                input_f = open(gz_path, 'rb')
             output_f = open(asc_path, 'wb')
             output_f.write(input_f.read())
             output_f.close()
@@ -253,7 +260,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
             del input_f, output_f
             os.remove(gz_path)
         except:
-            logging.error('  Error extracting ASCII file\n  {}')
+            logging.error(f'  Error extracting ASCII file\n  {asc_path}')
             return f'{tgt_date} - Error extracting ASCII file\n'
 
         logging.debug('  Reading ASCII')
@@ -263,10 +270,10 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
         logging.debug(f'    Input Geo: {output_geo}')
 
         # In the UC Davis data some arrays have a 500m cell size
-        if output_geo[1] == 500.0 and output_geo[5] == -500.0:
+        if output_geo[0] == 500.0 and output_geo[4] == -500.0:
             logging.info(f'  Rescaling input {gz_var} array')
             output_array = ndimage.zoom(output_array, 0.25, order=1)
-            output_geo = (output_geo[0], 2000.0, 0.0, output_geo[3], 0.0, -2000.0)
+            output_geo = (2000.0, 0.0, output_geo[2], 0.0, -2000.0, output_geo[5])
             output_shape = tuple(map(int, output_array.shape))
             logging.debug(f'    Shape: {output_array.shape}')
             logging.debug(f'    Geo: {output_geo}')
@@ -285,7 +292,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
             output_array = np.lib.pad(
                 output_array, pad_width, 'constant', constant_values=-9999.0)
         elif output_geo != asset_geo:
-            logging.warning(f'  Unexpected input {gz_var} array extent\n'
+            logging.warning(f'  Unexpected input {gz_var} array transform\n'
                             f'    Shape: {output_shape}\n'
                             f'    Geo: {output_geo}\n')
             return f'{tgt_date} - Unexpected input {gz_var} transform\n'
@@ -299,7 +306,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
         # DEADBEEF
         # os.remove(asc_path)
 
-    if 'ETo_ASCE' in variables or 'ETr_ASCE' in variables:
+    if 'eto_asce' in variables or 'etr_asce' in variables:
         logging.debug('\nComputing Reference ET')
         refet_vars = {'Rs', 'Tdew', 'Tx', 'Tn', 'U2'}
         if not refet_vars.issubset(set(daily_arrays.keys())):
@@ -335,14 +342,15 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
         #     lat_array = src.read(1)
 
         for variable in variables:
-            if variable not in ['ETo_ASCE', 'ETr_ASCE']:
+            if variable not in ['eto_asce', 'etr_asce']:
                 continue
             logging.debug(f'{variable}')
             refet_obj = refet.Daily(
                 tmin=daily_arrays['Tn'], tmax=daily_arrays['Tx'],
                 # Compute Ea from Tdew
                 ea=refet.calcs._sat_vapor_pressure(daily_arrays['Tdew']),
-                rs=daily_arrays['Rs'],
+                # Force solar to be >= 0
+                rs=np.maximum(daily_arrays['Rs'], 0),
                 uz=daily_arrays['U2'], zw=2, elev=elev_array, lat=lat_array,
                 doy=int(tgt_dt.strftime('%j')), method='asce',
                 input_units={'tmax': 'C', 'tmin': 'C', 'ea': 'kPa',
@@ -416,9 +424,10 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
         'date_ingested': f'{datetime.datetime.today().strftime("%Y-%m-%d")}',
         'source': SOURCE_URL.replace('https://', ''),
     }
-    if 'ETo_ASCE' in variables or 'ETr_ASCE' in variables:
+    if 'eto_asce' in variables or 'etr_asce' in variables:
         properties['refet_version'] = f'{refet.__version__}'
 
+    # NOTE: The band names are being forced to lower case here
     params = {
         'name': asset_id,
         'bands': [
@@ -469,7 +478,7 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False,
     if user_credentials_flag:
         logging.debug('\nInitializing GEE using user credentials')
         ee.Initialize()
-    elif os.path.isfile(GEE_KEY_FILE):
+    elif GEE_KEY_FILE and os.path.isfile(GEE_KEY_FILE):
         logging.info(f'\nInitializing GEE using user key file: {GEE_KEY_FILE}')
         try:
             ee.Initialize(ee.ServiceAccountCredentials('_', key_file=GEE_KEY_FILE))
@@ -720,6 +729,8 @@ def cron_scheduler(request):
         abort(400, description='End date must be after start date')
     if args['start_dt'] < datetime.datetime(2003, 10, 1):
         abort(400, description=f'Start date cannot be before 2003-10-01')
+    if args['start_dt'] < datetime.datetime(2004, 1, 1):
+        abort(400, description=f'Start date cannot be before 2004-01-01')
     # if args['end_dt'] > datetime.datetime.today():
     #     args['end_dt'] = datetime.datetime.today()
     #     logging.info(f'Adjusting end date to:   {end_dt.strftime("%Y-%m-%d")}\n')
@@ -1158,6 +1169,8 @@ if __name__ == '__main__':
     ingest_dt_list = cimis_daily_asset_dates(
         args.start, args.end, overwrite_flag=args.overwrite,
         user_credentials_flag=args.user_credentials)
+    # print(ingest_dt_list)
+    # input('ENTER')
 
     for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
         response = cimis_daily_asset_ingest(

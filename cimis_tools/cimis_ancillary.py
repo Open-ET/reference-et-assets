@@ -1,8 +1,3 @@
-#--------------------------------
-# Name:         cimis_ancillary.py
-# Purpose:      Download CIMIS data
-#--------------------------------
-
 import argparse
 import datetime
 import logging

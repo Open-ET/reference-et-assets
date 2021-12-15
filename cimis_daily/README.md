@@ -6,7 +6,7 @@ Spatial CIMIS is currently being ingested as Earth Engine assets using cloud fun
 
 Collection ID: projects/openet/reference_et/cimis/daily
 
-Bands: Tdew, Tx, Tn, Rnl, Rs, K, U2, ETo, ETo_ASCE, ETr_ASCE
+Bands: eto, eto_asce, etr_asce
 
 Image name format: YYYYMMDD
 
@@ -14,7 +14,7 @@ Timestep: daily
 
 ### Reference ET
 
-ASCE Standardize Reference ET is being computed from the component variables using the Refet module (https://github.com/WSWUP/refet).  The "grass" and "aflfalfa" reference ET bands are named "ETo_ASCE" and "ETr_ASCE".
+ASCE Standardize Reference ET is being computed from the component variables using the Refet module (https://github.com/WSWUP/refet).  The "grass" and "aflfalfa" reference ET bands are named "eto_asce" and "etr_asce".
 
 ## Availability
 

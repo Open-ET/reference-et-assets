@@ -18,5 +18,5 @@ gcloud functions call cimis-reference-et-monthly --project openet
 ### Scheduling the job
 
 ```
-gcloud scheduler jobs update http cimis-reference-et-monthly --schedule "10 6 5,15,25 * *" --uri "https://us-central1-openet.cloudfunctions.net/cimis-reference-et-monthly" --description "Update Monthly CIMIS Reference ET" --http-method POST --time-zone "UTC" --project openet --max-retry-attempts 3
+gcloud scheduler jobs update http cimis-reference-et-monthly --schedule "10 6 2-6 * *" --uri "https://us-central1-openet.cloudfunctions.net/cimis-reference-et-monthly" --description "Update Monthly CIMIS Reference ET" --http-method POST --time-zone "UTC" --project openet --max-retry-attempts 5
 ```
