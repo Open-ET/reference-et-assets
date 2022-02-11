@@ -26,8 +26,8 @@ END_MONTH_OFFSET = 0
 # CGM - The "eto" and "eto_asce" bands in CIMIS can be slightly different
 # The models are currently using the "eto_asce" band, not "eto",
 #   so we may want to build the monthly collection using that band also
-INPUT_BANDS = ['eto']
-OUTPUT_BANDS = ['eto']
+INPUT_BANDS = ['eto', 'eto_asce', 'etr_asce']
+OUTPUT_BANDS = ['eto', 'eto_asce', 'etr_asce']
 # INPUT_BANDS = ['eto_asce', 'etr_asce']
 # OUTPUT_BANDS = ['eto', 'etr']
 
@@ -254,9 +254,8 @@ def cimis_monthly_dates(start_dt, end_dt, overwrite_flag=False,
                         user_credentials_flag=False):
     """"""
     logging.debug('\nBuilding CIMIS monthly date list')
-
-    logging.debug('{}'.format(start_dt.strftime('%Y-%m-%d')))
-    logging.debug('{}'.format(end_dt.strftime('%Y-%m-%d')))
+    logging.debug(f'  {start_dt.strftime("%Y-%m-%d")}')
+    logging.debug(f'  {end_dt.strftime("%Y-%m-%d")}')
 
     # TODO: Move to config.py?
     if user_credentials_flag:
