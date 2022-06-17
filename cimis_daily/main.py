@@ -20,6 +20,14 @@ import refet
 import requests
 from scipy import ndimage
 
+if 'FUNCTION_REGION' in os.environ:
+    # Assume code is deployed to a cloud function
+    logging.debug(f'\nInitializing GEE using application default credentials')
+    import google.auth
+    credentials, project_id = google.auth.default(
+        default_scopes=['https://www.googleapis.com/auth/earthengine'])
+    ee.Initialize(credentials)
+
 logging.getLogger('earthengine-api').setLevel(logging.INFO)
 logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 logging.getLogger('requests').setLevel(logging.INFO)
@@ -51,8 +59,7 @@ END_DAY_OFFSET = 0
 
 
 def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
-                             overwrite_flag=False,
-                             user_credentials_flag=False):
+                             overwrite_flag=False):
     """Ingest CIMIS daily data into Earth Engine
 
     Parameters
@@ -62,10 +69,6 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
         Variables to process.  Choices are: 'depth', 'swe'.
     workspace : str
     overwrite_flag : bool, optional
-    user_credentials_flag : bool, optional
-        If True, the GEE key argument will not be set and the export tools will
-        attempt to use the user's credentials.
-        If False, the tool will use the "GEE_KEY_FILE" (the default is False).
 
     Returns
     -------
@@ -148,27 +151,6 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
             gz_variables[v] = gz_vars[v]
         except:
             logging.error(f'Unsupported variable: {v}')
-
-    # TODO: Move to config.py?
-    if user_credentials_flag:
-        logging.debug('\nInitializing GEE using user credentials')
-        ee.Initialize()
-    elif GEE_KEY_FILE and os.path.isfile(GEE_KEY_FILE):
-        logging.debug(f'\nInitializing GEE using user key file: {GEE_KEY_FILE}')
-        try:
-            ee.Initialize(ee.ServiceAccountCredentials('_', key_file=GEE_KEY_FILE))
-        except ee.ee_exception.EEException:
-            logging.warning('Unable to initialize GEE using user key file')
-            return False
-    # elif 'FUNCTION_REGION' in os.environ:
-    #     # Assume code is deployed to a cloud function
-    #     logging.debug(f'\nInitializing GEE using application default credentials')
-    #     import google.auth
-    #     credentials, project_id = google.auth.default(
-    #         default_scopes=['https://www.googleapis.com/auth/earthengine'])
-    #     ee.Initialize(credentials)
-    else:
-        raise Exception('EE not initialized')
 
     # Double check if the asset already exists
     if not overwrite_flag and ee.data.getInfo(asset_id):
@@ -454,8 +436,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
     return f'{tgt_date} - {asset_id}\n'
 
 
-def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False,
-                            user_credentials_flag=False):
+def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
     """Identify dates of missing CIMIS daily assets
 
     Parameters
@@ -463,10 +444,6 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False,
     start_dt : datetime
     end_dt : datetime
     overwrite_flag : bool, optional
-    user_credentials_flag : bool, optional
-        If True, the GEE key argument will not be set and the export tools will
-        attempt to use the user's credentials.
-        If False, the tool will use the "GEE_KEY_FILE" (the default is False).
 
     Returns
     -------
@@ -474,27 +451,8 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False,
 
     """
     logging.debug('\nBuilding CIMIS daily asset ingest date list')
-
-    # TODO: Move to config.py?
-    if user_credentials_flag:
-        logging.debug('\nInitializing GEE using user credentials')
-        ee.Initialize()
-    elif GEE_KEY_FILE and os.path.isfile(GEE_KEY_FILE):
-        logging.info(f'\nInitializing GEE using user key file: {GEE_KEY_FILE}')
-        try:
-            ee.Initialize(ee.ServiceAccountCredentials('_', key_file=GEE_KEY_FILE))
-        except ee.ee_exception.EEException:
-            logging.warning('Unable to initialize GEE using user key file')
-            return False
-    # elif 'FUNCTION_REGION' in os.environ:
-    #     # Assume code is deployed to a cloud function
-    #     logging.debug(f'\nInitializing GEE using application default credentials')
-    #     import google.auth
-    #     credentials, project_id = google.auth.default(
-    #         default_scopes=['https://www.googleapis.com/auth/earthengine'])
-    #     ee.Initialize(credentials)
-    else:
-        raise Exception('EE not initialized')
+    logging.debug(f'  {start_dt.strftime("%Y-%m-%d")}')
+    logging.debug(f'  {end_dt.strftime("%Y-%m-%d")}')
 
     task_id_re = re.compile(
         ASSET_COLL_ID.split('projects/')[-1] + '/(?P<date>\d{8})$')
@@ -518,17 +476,15 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False,
     task_id_list = [
         desc.replace('\nAsset ingestion: ', '')
         for desc in get_ee_tasks(states=['RUNNING', 'READY']).keys()]
-    task_date_list = [
-        datetime.datetime.strptime(m.group('date'), ASSET_DT_FMT)
-            .strftime('%Y-%m-%d')
-        for task_id in task_id_list
-        for m in [task_id_re.search(task_id)] if m]
-    logging.debug(f'\nTask dates: {", ".join(task_date_list)}')
+    task_dates = {
+        datetime.datetime.strptime(m.group('date'), ASSET_DT_FMT).strftime('%Y-%m-%d')
+        for task_id in task_id_list for m in [task_id_re.search(task_id)] if m}
+    # logging.debug(f'\nTask dates: {", ".join(sorted(task_dates))}')
 
     # Switch date list to be dates that are missing
     tgt_dt_list = [
         dt for dt in tgt_dt_list
-        if overwrite_flag or dt.strftime('%Y-%m-%d') not in task_date_list]
+        if overwrite_flag or dt.strftime('%Y-%m-%d') not in task_dates]
     if not tgt_dt_list:
         logging.info('No dates to process after checking ready/running tasks')
         return []
@@ -542,17 +498,15 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False,
     logging.debug('\nChecking existing assets')
     asset_id_list = get_ee_assets(
         ASSET_COLL_ID, start_dt, end_dt + datetime.timedelta(days=1))
-    asset_date_list = [
-        datetime.datetime.strptime(m.group('date'), ASSET_DT_FMT)
-            .strftime('%Y-%m-%d')
-        for asset_id in asset_id_list
-        for m in [asset_id_re.search(asset_id)] if m]
-    logging.debug(f'\nAsset dates: {", ".join(asset_date_list)}')
+    asset_dates = {
+        datetime.datetime.strptime(m.group('date'), ASSET_DT_FMT).strftime('%Y-%m-%d')
+        for asset_id in asset_id_list for m in [asset_id_re.search(asset_id)] if m}
+    logging.debug(f'\nAsset dates: {", ".join(sorted(asset_dates))}')
 
     # Switch date list to be dates that are missing
     tgt_dt_list = [
         dt for dt in tgt_dt_list
-        if overwrite_flag or dt.strftime('%Y-%m-%d') not in asset_date_list]
+        if overwrite_flag or dt.strftime('%Y-%m-%d') not in asset_dates]
     if not tgt_dt_list:
         logging.info('No dates to process after filtering existing assets')
         return []
@@ -1133,15 +1087,14 @@ def arg_parse():
         choices=VARIABLES, metavar='VAR',
         help='CIMIS daily variables')
     parser.add_argument(
+        '--key', type=arg_valid_file, metavar='FILE',
+        help='Earth Engine service account JSON key file')
+    parser.add_argument(
         '--overwrite', default=False, action='store_true',
         help='Force overwrite of existing files')
     parser.add_argument(
         '--reverse', default=False, action='store_true',
         help='Process dates in reverse order')
-    parser.add_argument(
-        '--user_credentials', default=False, action='store_true',
-        help='Use the user\'s credentials (instead of the default service '
-             'account key file)')
     parser.add_argument(
         '--debug', default=logging.INFO, const=logging.DEBUG,
         help='Debug level logging', action='store_const', dest='loglevel')
@@ -1158,9 +1111,19 @@ if __name__ == '__main__':
     args = arg_parse()
     logging.basicConfig(level=args.loglevel, format='%(message)s')
 
+    # if args.key and 'FUNCTION_REGION' not in os.environ:
+    if args.key:
+        logging.info(f'\nInitializing GEE using user key file: {args.key}')
+        try:
+            ee.Initialize(ee.ServiceAccountCredentials('_', key_file=args.key))
+        except ee.ee_exception.EEException:
+            raise Exception('Unable to initialize GEE using user key file')
+    else:
+        logging.info('\nInitializing Earth Engine using user credentials')
+        ee.Initialize()
+
     # # Build the image collection if it doesn't exist
     # logging.debug(f'Image Collection: {ASSET_COLL_ID}')
-    # ee.Initialize()
     # if not ee.data.getInfo(ASSET_COLL_ID):
     #     logging.info('\nImage collection does not exist and will be built'
     #                  '\n  {}'.format(ASSET_COLL_ID))
@@ -1168,16 +1131,14 @@ if __name__ == '__main__':
     #     ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, ASSET_COLL_ID)
 
     ingest_dt_list = cimis_daily_asset_dates(
-        args.start, args.end, overwrite_flag=args.overwrite,
-        user_credentials_flag=args.user_credentials)
+        args.start, args.end, overwrite_flag=args.overwrite)
     # print(ingest_dt_list)
     # input('ENTER')
 
     for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
         response = cimis_daily_asset_ingest(
             ingest_dt, variables=args.variables, workspace=args.workspace,
-            overwrite_flag=args.overwrite,
-            user_credentials_flag=args.user_credentials)
+            overwrite_flag=args.overwrite)
         logging.info(f'  {response}')
 
     # queue_ingest_tasks(ingest_dt_list)

@@ -1,4 +1,4 @@
-earthengine-api>=0.1.232
+earthengine-api==0.1.310
 flask
 google-api-python-client
 python-dateutil

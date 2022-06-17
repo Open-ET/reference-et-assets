@@ -1,4 +1,4 @@
-earthengine-api==0.1.290
+earthengine-api==0.1.310
 flask==2.0.2
 google-cloud-storage==1.41.0
 google-cloud-tasks==2.0.0

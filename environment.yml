@@ -3,7 +3,7 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - earthengine-api=0.1.290
+  - earthengine-api=0.1.310
   - flask
   - google-cloud-storage
   - numpy

@@ -75,8 +75,9 @@ echo %GOOGLE_APPLICATION_CREDENTIALS%
 
 The following are the parameters that were set when deploying the function for the first time.  Subsequent deployments only need the project if not set above.
 ```
-gcloud functions deploy cimis-reference-et-daily-scheduler --project openet --runtime python37 --entry-point cron_scheduler --trigger-http --allow-unauthenticated --memory 512 --timeout 120 --max-instances 1
-gcloud functions deploy cimis-reference-et-daily-worker --project openet --runtime python37 --entry-point cron_worker --trigger-http --allow-unauthenticated --memory 512 --timeout 120 --max-instances 1
+gcloud functions deploy cimis-reference-et-daily-scheduler --project openet --runtime python37 --entry-point cron_scheduler --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1
+
+gcloud functions deploy cimis-reference-et-daily-worker --project openet --runtime python37 --entry-point cron_worker --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1
 ```
 
 ### Calling the cloud function
@@ -96,7 +97,7 @@ gcloud functions call cimis-reference-et-daily-scheduler --project openet
 ### Scheduling the job
 
 ```
-gcloud scheduler jobs update http cimis-reference-et-daily --schedule "5 12 * * *" --uri "https://us-central1-openet.cloudfunctions.net/cimis-reference-et-daily-scheduler?days=60" --description "Spatial CIMIS Daily Assets" --http-method POST --time-zone "UTC" --max-retry-attempts 5 --attempt-deadline 120s
+gcloud scheduler jobs update http cimis-reference-et-daily --schedule "5 12 * * *" --uri "https://us-central1-openet.cloudfunctions.net/cimis-reference-et-daily-scheduler?days=60" --description "Spatial CIMIS Daily Assets" --http-method POST --time-zone "UTC" --project openet --location us-central1 --max-retry-attempts 5 --attempt-deadline 300s --min-backoff=20s
 ```
 
 ### Create tasks queue
