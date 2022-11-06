@@ -25,7 +25,6 @@ logging.getLogger('urllib3').setLevel(logging.INFO)
 
 ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
                  'projects/openet/reference_et/gridmet/daily'
-GEE_KEY_FILE = 'openet-gee.json'
 SOURCE_COLL_ID = 'IDAHO_EPSCOR/GRIDMET'
 START_DAY_OFFSET = 90
 END_DAY_OFFSET = 1
@@ -213,7 +212,8 @@ def gridmet_dates(start_dt, end_dt, overwrite_flag=False):
     logging.debug(f'  {end_dt.strftime("%Y-%m-%d")}')
 
     task_id_re = re.compile(
-        'gridmet_daily_bias_corrected_reference_et_(?P<date>\d{8})')
+        'gridmet_daily_bias_corrected_reference_et_(?P<date>\d{8})'
+    )
 
     # Figure out which asset dates need to be ingested
     # Start with a list of dates to check
@@ -233,13 +233,15 @@ def gridmet_dates(start_dt, end_dt, overwrite_flag=False):
         for desc in get_ee_tasks(states=['RUNNING', 'READY']).keys()]
     task_dates = {
         datetime.datetime.strptime(m.group('date'), '%Y%m%d').strftime('%Y-%m-%d')
-        for task_id in task_id_list for m in [task_id_re.search(task_id)] if m}
+        for task_id in task_id_list for m in [task_id_re.search(task_id)] if m
+    }
     # logging.debug(f'\nTask dates: {", ".join(sorted(task_dates))}')
 
     # Switch date list to be dates that are missing
     test_dt_list = [
         dt for dt in test_dt_list
-        if overwrite_flag or dt.strftime('%Y-%m-%d') not in task_dates]
+        if overwrite_flag or dt.strftime('%Y-%m-%d') not in task_dates
+    ]
     if not test_dt_list:
         logging.info('All dates are queued for export')
         return []
@@ -523,15 +525,15 @@ def arg_parse():
         description='Generate daily bias corrected GRIDMET reference ET assets',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--start', type=arg_valid_date, metavar='DATE',
+        '--start', type=arg_valid_date, metavar='YYYY-MM-DD',
         default=(datetime.datetime.today() -
                  datetime.timedelta(days=START_DAY_OFFSET)).strftime('%Y-%m-%d'),
-        help='Start date (format YYYY-MM-DD)')
+        help='Start date')
     parser.add_argument(
-        '--end', type=arg_valid_date, metavar='DATE',
+        '--end', type=arg_valid_date, metavar='YYYY-MM-DD',
         default=(datetime.datetime.today() -
                  datetime.timedelta(days=END_DAY_OFFSET)).strftime('%Y-%m-%d'),
-        help='End date (format YYYY-MM-DD)')
+        help='End date (inclusive)')
     # parser.add_argument(
     #     '-v', '--variables', nargs='+', default=VARIABLES,
     #     choices=VARIABLES, metavar='VAR',

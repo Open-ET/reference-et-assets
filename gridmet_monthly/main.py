@@ -26,14 +26,13 @@ logging.getLogger('urllib3').setLevel(logging.INFO)
 
 ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
                  'projects/openet/reference_et/gridmet/monthly'
-GEE_KEY_FILE = 'openet-gee.json'
 SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
                  'projects/openet/reference_et/gridmet/daily'
 START_MONTH_OFFSET = 3
 END_MONTH_OFFSET = 0
 
 
-def gridmet_monthly_ingest(tgt_dt, overwrite_flag=False):
+def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
     """
 
     Parameters
@@ -81,7 +80,7 @@ def gridmet_monthly_ingest(tgt_dt, overwrite_flag=False):
     source_coll = ee.ImageCollection(SOURCE_COLL_ID)\
         .filterDate(tgt_dt, tgt_dt + relativedelta(months=1))
 
-    # TODO: Come up with a way to do this server side to avoid the getInfo above
+    # TODO: Come up with a way to do this server side to avoid the getInfo
     status = ee.Dictionary({'permanent': 0, 'provisional': 0, 'early': 0})\
         .combine(source_coll.aggregate_histogram('status'))\
         .getInfo()
@@ -141,10 +140,10 @@ def gridmet_monthly_ingest(tgt_dt, overwrite_flag=False):
     #         export_task.start()
     #         break
     #     except ee.ee_exception.EEException as e:
-    #         logging.warning('EE Exception, retry {}\n{}'.format(i, e))
+    #         logging.warning(f'EE Exception, retry {i}\n{e}')
     #     except Exception as e:
-    #         logging.warning('Unhandled Exception: {}'.format(e))
-    #         return 'Unhandled Exception: {}'.format(e)
+    #         logging.warning(f'Unhandled Exception: {e}')
+    #         return f'Unhandled Exception: {e}'
     #     time.sleep(i ** 2)
 
     return f'{export_name} - {export_task.id}\n'
@@ -221,8 +220,8 @@ def cron_scheduler(request):
         #     start_dt = datetime.datetime(1980, 1, 1)
     else:
         abort(404, description='Both start and end date must be specified')
-    response += 'Start Date: {}\n'.format(start_dt.strftime('%Y-%m-%d'))
-    response += 'End Date:   {}\n'.format(end_dt.strftime('%Y-%m-%d'))
+    response += f'Start Date: {start_dt.strftime("%Y-%m-%d")}\n'
+    response += f'End Date:   {end_dt.strftime("%Y-%m-%d")}\n'
 
     args = {
         'start_dt': start_dt,
@@ -231,8 +230,8 @@ def cron_scheduler(request):
 
     for tgt_dt in gridmet_monthly_dates(**args):
         logging.info(f'Date: {tgt_dt.strftime("%Y-%m-%d")}')
-        # response += 'Date: {}\n'.format(tgt_dt.strftime('%Y-%m-%d'))
-        response += gridmet_monthly_ingest(tgt_dt, overwrite_flag=True)
+        # response += f'Date: {tgt_dt.strftime("%Y-%m-%d")}\n'
+        response += gridmet_monthly_asset_export(tgt_dt, overwrite_flag=True)
 
     return Response(response, mimetype='text/plain')
 
@@ -244,7 +243,8 @@ def gridmet_monthly_dates(start_dt, end_dt, overwrite_flag=False):
     logging.debug(f'  {end_dt.strftime("%Y-%m-%d")}')
 
     task_id_re = re.compile(
-        'gridmet_monthly_bias_corrected_reference_et_(?P<date>\d{8})')
+        'gridmet_monthly_bias_corrected_reference_et_(?P<date>\d{8})'
+    )
 
     # Figure out which asset dates need to be ingested
     # Start with a list of dates to check
@@ -264,13 +264,15 @@ def gridmet_monthly_dates(start_dt, end_dt, overwrite_flag=False):
         for desc in get_ee_tasks(states=['RUNNING', 'READY']).keys()]
     task_dates = {
         datetime.datetime.strptime(m.group('date'), '%Y%m%d').strftime('%Y-%m-%d')
-        for task_id in task_id_list for m in [task_id_re.search(task_id)] if m}
+        for task_id in task_id_list for m in [task_id_re.search(task_id)] if m
+    }
     # logging.debug(f'\nTask dates: {", ".join(sorted(task_dates))}')
 
     # Switch date list to be dates that are missing
     test_dt_list = [
         dt for dt in test_dt_list
-        if overwrite_flag or dt.strftime('%Y-%m-%d') not in task_dates]
+        if overwrite_flag or dt.strftime('%Y-%m-%d') not in task_dates
+    ]
     if not test_dt_list:
         logging.info('All dates are queued for export')
         return []
@@ -296,7 +298,8 @@ def gridmet_monthly_dates(start_dt, end_dt, overwrite_flag=False):
 
     test_dt_list = [
         dt for dt in test_dt_list
-        if overwrite_flag or dt.strftime('%Y%m') not in tgt_perm_dates]
+        if overwrite_flag or dt.strftime('%Y%m') not in tgt_perm_dates
+    ]
     if not test_dt_list:
         logging.info('All dates were built with permanent status images')
         return []
@@ -577,16 +580,16 @@ def arg_parse():
         description='Generate monthly bias corrected GRIDMET reference ET assets',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
-        '--start', type=arg_valid_date, metavar='DATE',
+        '--start', type=arg_valid_date, metavar='YYYY-MM-DD',
         default=(datetime.datetime(today.year, today.month, 1) -
                  relativedelta(months=START_MONTH_OFFSET)).strftime('%Y-%m-%d'),
-        help='Start date (format YYYY-MM-DD)')
+        help='Start date')
     parser.add_argument(
-        '--end', type=arg_valid_date, metavar='DATE',
+        '--end', type=arg_valid_date, metavar='YYYY-MM-DD',
         default=(datetime.datetime(today.year, today.month, 1) -
                  relativedelta(days=1) -
                  relativedelta(months=END_MONTH_OFFSET)).strftime('%Y-%m-%d'),
-        help='End date (format YYYY-MM-DD)')
+        help='End date (inclusive)')
     # parser.add_argument(
     #     '-v', '--variables', nargs='+', default=VARIABLES,
     #     choices=VARIABLES, metavar='VAR',
@@ -624,18 +627,20 @@ if __name__ == '__main__':
         ee.Initialize()
 
     # # Build the image collection if it doesn't exist
-    # logging.debug('Image Collection: {}'.format(ASSET_COLL_ID))
+    # logging.debug(f'Image Collection: {ASSET_COLL_ID}')
     # if not ee.data.getInfo(ASSET_COLL_ID):
-    #     logging.info('\nImage collection does not exist and will be built'
-    #                  '\n  {}'.format(ASSET_COLL_ID))
+    #     logging.info(f'\nImage collection does not exist and will be built'
+    #                  f'\n  {ASSET_COLL_ID}')
     #     input('Press ENTER to continue')
     #     ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, ASSET_COLL_ID)
 
     ingest_dt_list = gridmet_monthly_dates(
-        args.start, args.end, overwrite_flag=args.overwrite)
+        args.start, args.end, overwrite_flag=args.overwrite
+    )
 
     for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
         # logging.info(f'Date: {ingest_dt.strftime("%Y-%m-%d")}')
-        response = gridmet_monthly_ingest(
-            ingest_dt,  overwrite_flag=args.overwrite)
+        response = gridmet_monthly_asset_export(
+            ingest_dt,  overwrite_flag=args.overwrite
+        )
         logging.info(f'  {response}')
