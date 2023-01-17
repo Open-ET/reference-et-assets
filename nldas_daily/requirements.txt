@@ -1,0 +1,5 @@
+earthengine-api==0.1.310
+flask
+google-api-python-client
+openet-refet-gee
+python-dateutil
