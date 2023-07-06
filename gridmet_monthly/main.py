@@ -16,7 +16,8 @@ if 'FUNCTION_REGION' in os.environ:
     logging.debug(f'\nInitializing GEE using application default credentials')
     import google.auth
     credentials, project_id = google.auth.default(
-        default_scopes=['https://www.googleapis.com/auth/earthengine'])
+        default_scopes=['https://www.googleapis.com/auth/earthengine']
+    )
     ee.Initialize(credentials)
 
 # logging.getLogger('earthengine-api').setLevel(logging.INFO)
@@ -25,9 +26,13 @@ logging.getLogger('requests').setLevel(logging.INFO)
 logging.getLogger('urllib3').setLevel(logging.INFO)
 
 ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                 'projects/openet/reference_et/gridmet/monthly'
+                 'projects/openet/reference_et/conus/gridmet/monthly/v1'
 SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                 'projects/openet/reference_et/gridmet/daily'
+                 'projects/openet/reference_et/conus/gridmet/daily/v1'
+# ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
+#                  'projects/openet/reference_et/gridmet/monthly'
+# SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
+#                  'projects/openet/reference_et/gridmet/daily'
 START_MONTH_OFFSET = 3
 END_MONTH_OFFSET = 0
 
@@ -53,8 +58,7 @@ def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
     #            f'{tgt_dt.strftime("%Y-%m")}'
 
     asset_id = f'{ASSET_COLL_ID}/{tgt_dt.strftime("%Y%m")}'
-    export_name = f'gridmet_monthly_bias_corrected_reference_et_' \
-                  f'{tgt_dt.strftime("%Y%m%d")}'
+    export_name = f'gridmet_reference_et_monthly_v1_{tgt_dt.strftime("%Y%m%d")}'
     logging.debug(f'  {SOURCE_COLL_ID}')
     logging.debug(f'  {asset_id}')
     logging.debug(f'  {export_name}')
@@ -72,7 +76,8 @@ def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
 
     asset_geo = [
         0.041666666666666664, 0, -124.78750,
-        0, -0.041666666666666664, 49.42083333333334]
+        0, -0.041666666666666664, 49.42083333333334
+    ]
     asset_crs = 'EPSG:4326'
     asset_dimensions = '1386x585'
     asset_geo_str = '[' + ','.join(list(map(str, asset_geo))) + ']'
@@ -81,16 +86,17 @@ def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
         .filterDate(tgt_dt, tgt_dt + relativedelta(months=1))
 
     # TODO: Come up with a way to do this server side to avoid the getInfo
-    status = ee.Dictionary({'permanent': 0, 'provisional': 0, 'early': 0})\
-        .combine(source_coll.aggregate_histogram('status'))\
-        .getInfo()
+    status = get_info(
+        ee.Dictionary({'permanent': 0, 'provisional': 0, 'early': 0})
+        .combine(source_coll.aggregate_histogram('status'))
+    )
 
-    eto_source_versions = source_coll\
-        .aggregate_histogram('eto_source_data_version')\
-        .getInfo()
-    etr_source_versions = source_coll\
-        .aggregate_histogram('etr_source_data_version')\
-        .getInfo()
+    eto_source_versions = get_info(
+        source_coll.aggregate_histogram('eto_source_data_version')
+    )
+    etr_source_versions = get_info(
+        source_coll.aggregate_histogram('etr_source_data_version')
+    )
 
     # TODO: Come up with a way to do this server side to avoid the getInfo above
     if status['early'] > 0:
@@ -100,27 +106,28 @@ def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
     else:
         status_summary = 'permanent'
 
-    output_img = source_coll.sum()\
-        .set({
-            'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
-            'eto_source_data_versions': str(eto_source_versions),
-            'etr_source_data_versions': str(etr_source_versions),
-            'early': status['early'],
-            'provisional': status['provisional'],
-            'permanent': status['permanent'],
-            # TODO: Switch to server side calls (see TODO's abovee)
-            # 'early': status.get('early'),
-            # 'provisional': status.get('provisional'),
-            # 'permanent': status.get('permanent'),
-            # 'scale_factor': 1.0,
-            'scale_factor_et_reference': 1.0,
-            'scale_factor_eto': 1.0,
-            'scale_factor_etr': 1.0,
-            'status': status_summary,
-            # CGM: Should we use the UTC 0 time_start or the GRIDMET time_start?
-            'system:time_start': ee.Date(tgt_dt.strftime('%Y-%m-%d')).millis(),
-            'system:index': tgt_dt.strftime('%Y%m'),
-        })
+    properties = {
+        'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
+        'eto_source_data_versions': str(eto_source_versions),
+        'etr_source_data_versions': str(etr_source_versions),
+        'early': status['early'],
+        'provisional': status['provisional'],
+        'permanent': status['permanent'],
+        # TODO: Switch to server side calls (see TODO's abovee)
+        # 'early': status.get('early'),
+        # 'provisional': status.get('provisional'),
+        # 'permanent': status.get('permanent'),
+        # 'scale_factor': 1.0,
+        'scale_factor_et_reference': 1.0,
+        'scale_factor_eto': 1.0,
+        'scale_factor_etr': 1.0,
+        'status': status_summary,
+        # CGM: Should we use the UTC 0 time_start or the GRIDMET time_start?
+        'system:time_start': ee.Date(tgt_dt.strftime('%Y-%m-%d')).millis(),
+        'system:index': tgt_dt.strftime('%Y%m'),
+    }
+
+    output_img = source_coll.sum().set(properties)
 
     export_task = ee.batch.Export.image.toAsset(
         image=output_img,
@@ -131,20 +138,17 @@ def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
         crsTransform=asset_geo_str,
     )
 
-    # Start the export task
-    export_task.start()
-
-    # # Try to start the task a couple of times
-    # for i in range(1, 6):
-    #     try:
-    #         export_task.start()
-    #         break
-    #     except ee.ee_exception.EEException as e:
-    #         logging.warning(f'EE Exception, retry {i}\n{e}')
-    #     except Exception as e:
-    #         logging.warning(f'Unhandled Exception: {e}')
-    #         return f'Unhandled Exception: {e}'
-    #     time.sleep(i ** 2)
+    # Try to start the task a couple of times
+    for i in range(1, 4):
+        try:
+            export_task.start()
+            break
+        except ee.ee_exception.EEException as e:
+            logging.warning(f'EE Exception, retry {i}\n{e}')
+        except Exception as e:
+            logging.warning(f'Unhandled Exception: {e}')
+            return f'Unhandled Exception: {e}'
+        time.sleep(i ** 3)
 
     return f'{export_name} - {export_task.id}\n'
 
@@ -202,13 +206,12 @@ def cron_scheduler(request):
             abort(404, description=response)
 
         # Force end date to be last day of previous month
-        end_dt = min(
-            end_dt, datetime.datetime.today() - datetime.timedelta(days=1))
+        end_dt = min(end_dt, datetime.datetime.today() - datetime.timedelta(days=1))
 
         # TODO: Force start date to be at least one month before end
         # start_dt = min(
-        #     start_dt,
-        #     end_dt - relativedelta(months=1) + relativedelta(days=1))
+        #     start_dt, end_dt - relativedelta(months=1) + relativedelta(days=1)
+        # )
 
         if start_dt > end_dt:
             abort(404, description='Start date must be before end date')
@@ -220,6 +223,7 @@ def cron_scheduler(request):
         #     start_dt = datetime.datetime(1980, 1, 1)
     else:
         abort(404, description='Both start and end date must be specified')
+
     response += f'Start Date: {start_dt.strftime("%Y-%m-%d")}\n'
     response += f'End Date:   {end_dt.strftime("%Y-%m-%d")}\n'
 
@@ -254,14 +258,16 @@ def gridmet_monthly_dates(start_dt, end_dt, overwrite_flag=False):
         logging.info('Empty date range')
         return []
     # logging.info('\nTest dates: {}'.format(
-    #     ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), test_dt_list))))
+    #     ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), test_dt_list))
+    # ))
 
     # Check if any of the needed dates are currently being ingested
     # Check task list before checking asset list in case a task switches
     #   from running to done before the asset list is retrieved.
     task_id_list = [
         desc.replace('\nAsset ingestion: ', '')
-        for desc in get_ee_tasks(states=['RUNNING', 'READY']).keys()]
+        for desc in get_ee_tasks(states=['RUNNING', 'READY']).keys()
+    ]
     task_dates = {
         datetime.datetime.strptime(m.group('date'), '%Y%m%d').strftime('%Y-%m-%d')
         for task_id in task_id_list for m in [task_id_re.search(task_id)] if m
@@ -286,15 +292,16 @@ def gridmet_monthly_dates(start_dt, end_dt, overwrite_flag=False):
     # Bump end date for filterDate() calls
     filter_end_dt = end_dt + datetime.timedelta(days=1)
     tgt_date_coll = ee.ImageCollection(ASSET_COLL_ID) \
-            .filterDate(start_dt.strftime('%Y-%m-%d'),
-                        filter_end_dt.strftime('%Y-%m-%d'))
-    tgt_perm_dates =  tgt_date_coll \
-        .filterMetadata('status', 'equals', 'permanent') \
-        .aggregate_array('system:index').getInfo()
-    # tgt_perm_dates =  src_date_coll \
-    #     .filter(ee.Filter.Or(ee.Filter.gt('provisional', 0),
-    #                          ee.Filter.gt('early', 0))) \
-    #     .aggregate_array('system:index').getInfo()
+        .filterDate(start_dt.strftime('%Y-%m-%d'), filter_end_dt.strftime('%Y-%m-%d'))
+    tgt_perm_dates = get_info(
+        tgt_date_coll.filterMetadata('status', 'equals', 'permanent')
+        .aggregate_array('system:index')
+    )
+    # tgt_perm_dates =  get_info(
+    #     src_date_coll
+    #     .filter(ee.Filter.Or(ee.Filter.gt('provisional', 0), ee.Filter.gt('early', 0)))
+    #     .aggregate_array('system:index')
+    # )
 
     test_dt_list = [
         dt for dt in test_dt_list
@@ -320,15 +327,18 @@ def gridmet_monthly_dates(start_dt, end_dt, overwrite_flag=False):
     #     src_date_coll = ee.ImageCollection(SOURCE_COLL_ID) \
     #         .filterDate(start_dt.strftime('%Y-%m-%d'),
     #                     filter_end_dt.strftime('%Y-%m-%d'))
-    #     src_perm_dates =  src_date_coll \
-    #         .filterMetadata('status', 'equals', 'permanent') \
-    #         .aggregate_array('system:index').getInfo()
-    #     src_prov_dates = src_date_coll \
-    #         .filterMetadata('status', 'equals', 'provisional') \
-    #         .aggregate_array('system:index').getInfo()
-    #     src_early_dates = src_date_coll \
-    #         .filterMetadata('status', 'equals', 'early') \
-    #         .aggregate_array('system:index').getInfo()
+    #     src_perm_dates =  get_info(
+    #         src_date_coll
+    #         .filterMetadata('status', 'equals', 'permanent')
+    #         .aggregate_array('system:index'))
+    #     src_prov_dates = get_info(
+    #         src_date_coll
+    #         .filterMetadata('status', 'equals', 'provisional')
+    #         .aggregate_array('system:index'))
+    #     src_early_dates = get_info(
+    #         src_date_coll
+    #         .filterMetadata('status', 'equals', 'early')
+    #         .aggregate_array('system:index'))
     #     src_dates = src_perm_dates + src_prov_dates + src_early_dates
     # except Exception as e:
     #     abort(404, description='Error making source date getInfo calls')
@@ -343,15 +353,18 @@ def gridmet_monthly_dates(start_dt, end_dt, overwrite_flag=False):
     #     tgt_date_coll = ee.ImageCollection(ASSET_COLL_ID) \
     #         .filterDate(start_dt.strftime('%Y-%m-%d'),
     #                     filter_end_dt.strftime('%Y-%m-%d'))
-    #     tgt_perm_dates = tgt_date_coll \
-    #         .filterMetadata('status', 'equals', 'permanent') \
-    #         .aggregate_array('system:index').getInfo()
-    #     tgt_prov_dates = tgt_date_coll \
-    #         .filterMetadata('status', 'equals', 'provisional') \
-    #         .aggregate_array('system:index').getInfo()
-    #     tgt_early_dates = tgt_date_coll \
-    #         .filterMetadata('status', 'equals', 'early') \
-    #         .aggregate_array('system:index').getInfo()
+    #     tgt_perm_dates = get_info(
+    #         tgt_date_coll.filterMetadata('status', 'equals', 'permanent')
+    #         .aggregate_array('system:index')
+    #     )
+    #     tgt_prov_dates = get_info(
+    #         tgt_date_coll.filterMetadata('status', 'equals', 'provisional')
+    #         .aggregate_array('system:index')
+    #     )
+    #     tgt_early_dates = get_info(
+    #         tgt_date_coll.filterMetadata('status', 'equals', 'early')
+    #         .aggregate_array('system:index')
+    #     )
     #     tgt_dates = tgt_perm_dates + tgt_prov_dates + tgt_early_dates
     # except Exception as e:
     #     abort(404, description='Error making target date getInfo calls')
@@ -365,20 +378,22 @@ def gridmet_monthly_dates(start_dt, end_dt, overwrite_flag=False):
     #
     # # # logging.debug('\nGetting source collection info')
     # # try:
-    # #     source_info = ee.ImageCollection(SOURCE_COLL_ID) \
+    # #     source_info = get_info(
+    # #         ee.ImageCollection(SOURCE_COLL_ID)
     # #         .filterDate(start_dt.strftime('%Y-%m-%d'),
-    # #                     filter_end_dt.strftime('%Y-%m-%d')) \
-    # #         .select(['eto', 'etr']) \
-    # #         .getInfo()
+    # #                     filter_end_dt.strftime('%Y-%m-%d'))
+    # #         .select(['eto', 'etr'])
+    # #     )
     # # except Exception as e:
     # #     abort(404, description='Error making source getInfo call')
     # #
     # # # logging.debug('\nGetting target collection info')
     # # try:
-    # #     target_info = ee.ImageCollection(ASSET_COLL_ID) \
+    # #     target_info = get_info(
+    # #         ee.ImageCollection(ASSET_COLL_ID)
     # #         .filterDate(start_dt.strftime('%Y-%m-%d'),
-    # #                     filter_end_dt.strftime('%Y-%m-%d')) \
-    # #         .getInfo()
+    # #                     filter_end_dt.strftime('%Y-%m-%d'))
+    # #     )
     # # except Exception as e:
     # #     abort(404, description='Error making target getInfo call')
     # #
@@ -515,23 +530,56 @@ def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=6):
             break
         except Exception as e:
             logging.warning(
-                f'  Error getting task list, retrying ({i}/{retries})\n  {e}')
-            time.sleep((i+1) ** 2)
+                f'  Error getting task list, retrying ({i}/{retries})\n  {e}'
+            )
+            time.sleep((i+1) ** 3)
     if task_list is None:
         raise Exception('\nUnable to retrieve task list, exiting')
 
     task_list = sorted(
         [task for task in task_list if task['state'] in states],
-        key=lambda t: (t['state'], t['description'], t['id']))
+        key=lambda t: (t['state'], t['description'], t['id'])
+    )
     # task_list = sorted([
     #     [t['state'], t['description'], t['id']] for t in task_list
-    #     if t['state'] in states])
+    #     if t['state'] in states
+    # ])
 
     # Convert the task list to a dictionary with the task name as the key
     return {task['description']: task for task in task_list}
 
 
-# TODO: Pull from openet.core
+def get_info(ee_obj, max_retries=4):
+    """Make an exponential back off getInfo call on an Earth Engine object"""
+    # output = ee_obj.getInfo()
+    output = None
+    for i in range(1, max_retries):
+        try:
+            output = ee_obj.getInfo()
+        except ee.ee_exception.EEException as e:
+            if ('Earth Engine memory capacity exceeded' in str(e) or
+                    'Earth Engine capacity exceeded' in str(e) or
+                    'Too many concurrent aggregations' in str(e) or
+                    'Computation timed out.' in str(e)):
+                # TODO: Maybe add 'Connection reset by peer'
+                logging.info(f'    Resending query ({i}/{max_retries})')
+                logging.info(f'    {e}')
+            else:
+                # TODO: What should happen for unhandled EE exceptions?
+                logging.info('    Unhandled Earth Engine exception')
+                logging.info(f'    {e}')
+        except Exception as e:
+            logging.info(f'    Resending query ({i}/{max_retries})')
+            logging.debug(f'    {e}')
+
+        if output:
+            break
+        else:
+            time.sleep(i ** 3)
+
+    return output
+
+
 def arg_valid_date(input_date):
     """Check that a date string is ISO format (YYYY-MM-DD)
 

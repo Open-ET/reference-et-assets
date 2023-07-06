@@ -25,6 +25,9 @@ PROJECT_NAME = 'openet'
 BUCKET_NAME = 'openet'
 BUCKET_FOLDER = 'cimis'
 STORAGE_CLIENT = storage.Client(project=PROJECT_NAME)
+ASSET_FOLDER = 'projects/earthengine-legacy/assets/' \
+               'projects/openet/reference_et/california/cimis/ancillary'
+# ASSET_FOLDER = 'projects/earthengine-legacy/assets/projects/openet/reference_et/cimis'
 
 
 def main(ancillary_ws, overwrite_flag=False):
@@ -54,14 +57,15 @@ def main(ancillary_ws, overwrite_flag=False):
 
     temp_ws = os.path.join(ancillary_ws, 'temp')
     # TODO: Move into temp_ws once script is working
-    elev_full_zip = os.path.join(ancillary_ws, '{}.zip'.format(elev_name))
+    elev_full_zip = os.path.join(ancillary_ws, f'{elev_name}.zip')
     elev_full_raster = os.path.join(temp_ws, elev_name)
 
     # DEM for air pressure calculation
     # http://topotools.cr.usgs.gov/gmted_viewer/gmted2010_global_grids.php
     elev_full_url = (
         'http://edcintl.cr.usgs.gov/downloads/sciweb1/shared/topo/downloads/'
-        'GMTED/Grid_ZipFiles/{}.zip'.format(elev_name))
+        'GMTED/Grid_ZipFiles/{}.zip'.format(elev_name)
+    )
 
     # CIMIS grid
     asset_shape = (560, 510)
@@ -75,8 +79,9 @@ def main(ancillary_ws, overwrite_flag=False):
 
     # Spatial reference parameters
     asset_proj = rasterio.crs.CRS.from_proj4(
-        '+proj=aea +lat_1=34 +lat_2=40.5 +lat_0=0 +lon_0=-120 +x_0=0 ' +
-        '+y_0=-4000000 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
+        '+proj=aea +lat_1=34 +lat_2=40.5 +lat_0=0 +lon_0=-120 +x_0=0 '
+        '+y_0=-4000000 +ellps=GRS80 +datum=NAD83 +units=m +no_defs'
+    )
     # asset_proj = 'EPSG:3310'  # NAD_1983_California_Teale_Albers
     logging.debug(f'CRS: {asset_proj}')
 
@@ -120,7 +125,8 @@ def main(ancillary_ws, overwrite_flag=False):
         array_to_geotiff(
             mask_array, mask_raster,
             output_geo=asset_geo, output_proj=asset_proj,
-            output_nodata=0, output_type=rasterio.uint8)
+            output_nodata=0, output_type=rasterio.uint8,
+        )
         os.remove(mask_ascii)
         del mask_array
 
@@ -142,7 +148,8 @@ def main(ancillary_ws, overwrite_flag=False):
             src_crs=asset_proj, dst_crs='EPSG:4326',
             width=asset_shape[1], height=asset_shape[0], resolution=gcs_cs,
             left=asset_extent[0], bottom=asset_extent[1],
-            right=asset_extent[2], top=asset_extent[3])
+            right=asset_extent[2], top=asset_extent[3],
+        )
 
         # Snap the projected GCS transform and recompute shape
         snap_x, snap_y = 0, 0
@@ -158,29 +165,36 @@ def main(ancillary_ws, overwrite_flag=False):
         # Cell lat/lon values are measured half a cell in from extent edge
         lon_full_array, lat_full_array = np.meshgrid(
             np.linspace(xmin + 0.5 * gcs_cs, xmax - 0.5 * gcs_cs, gcs_cols),
-            np.linspace(ymax - 0.5 * gcs_cs, ymin + 0.5 * gcs_cs, gcs_rows))
+            np.linspace(ymax - 0.5 * gcs_cs, ymin + 0.5 * gcs_cs, gcs_rows)
+        )
 
         logging.debug(f'  {lat_raster}')
         array_to_geotiff(
             lat_full_array.astype(np.float32), lat_full_raster,
             output_geo=gcs_transform, output_proj='EPSG:4326',
-            output_nodata=-9999, output_type=rasterio.float32)
-        reproject(src_path=lat_full_raster, dst_path=lat_raster,
+            output_nodata=-9999, output_type=rasterio.float32,
+        )
+        reproject(
+            src_path=lat_full_raster, dst_path=lat_raster,
             dst_crs=asset_proj, dst_geo=asset_geo,
             dst_rows=asset_shape[0], dst_cols=asset_shape[1],
             dst_nodata=-9999, dst_type=rasterio.float32,
-            dst_resample=rasterio.warp.Resampling.bilinear)
+            dst_resample=rasterio.warp.Resampling.bilinear,
+        )
 
         logging.debug(f'  {lon_raster}')
         array_to_geotiff(
             lon_full_array.astype(np.float32), lon_full_raster,
             output_geo=gcs_transform, output_proj='EPSG:4326',
-            output_nodata=-9999, output_type=rasterio.float32)
-        reproject(src_path=lon_full_raster, dst_path=lon_raster,
+            output_nodata=-9999, output_type=rasterio.float32,
+        )
+        reproject(
+            src_path=lon_full_raster, dst_path=lon_raster,
             dst_crs=asset_proj, dst_geo=asset_geo,
             dst_rows=asset_shape[0], dst_cols=asset_shape[1],
             dst_nodata=-9999, dst_type=rasterio.float32,
-            dst_resample=rasterio.warp.Resampling.bilinear)
+            dst_resample=rasterio.warp.Resampling.bilinear,
+        )
 
         logging.info('  Uploading to bucket')
         bucket = STORAGE_CLIENT.bucket(BUCKET_NAME)
@@ -229,11 +243,12 @@ def main(ancillary_ws, overwrite_flag=False):
         if (not os.path.isfile(elev_raster) and
                 os.path.isdir(elev_full_raster)):
             logging.debug('  Projecting to CIMIS grid')
-            reproject(src_path=elev_full_raster, dst_path=elev_raster,
-                      dst_crs=asset_proj, dst_geo=asset_geo,
-                      dst_rows=asset_shape[0], dst_cols=asset_shape[1],
-                      dst_nodata=-9999, dst_type=rasterio.float32,
-                      dst_resample=rasterio.warp.Resampling.average,
+            reproject(
+                src_path=elev_full_raster, dst_path=elev_raster,
+                dst_crs=asset_proj, dst_geo=asset_geo,
+                dst_rows=asset_shape[0], dst_cols=asset_shape[1],
+                dst_nodata=-9999, dst_type=rasterio.float32,
+                dst_resample=rasterio.warp.Resampling.average,
             )
 
             # # Build overviews
@@ -268,11 +283,11 @@ def main(ancillary_ws, overwrite_flag=False):
     logging.info('\nIngesting into Earth Engine')
     ee.Initialize()
     asset_params = [
-        # ['projects/earthengine-legacy/assets/projects/openet/reference_et/cimis/elevation',
+        # [f'{asset_folder}/elevation',
         #  f'gs://{BUCKET_NAME}/{BUCKET_FOLDER}/{os.path.basename(elev_raster)}', 'elev', 'mn30_grd'],
-        ['projects/earthengine-legacy/assets/projects/openet/reference_et/cimis/latitude',
+        [f'{ASSET_FOLDER}/latitude',
          f'gs://{BUCKET_NAME}/{BUCKET_FOLDER}/{os.path.basename(lat_raster)}', 'latitude', ''],
-        ['projects/earthengine-legacy/assets/projects/openet/reference_et/cimis/mask',
+        [f'{ASSET_FOLDER}/mask',
          f'gs://{BUCKET_NAME}/{BUCKET_FOLDER}/{os.path.basename(mask_raster)}', 'mask', ''],
     ]
     for asset_id, bucket_path, variable, source in asset_params:
@@ -339,19 +354,19 @@ def ascii_to_array(input_ascii, input_type=np.float32):
     """
     with open(input_ascii, 'r') as input_f:
         input_header = input_f.readlines()[:6]
-    input_cols = float(input_header[0].strip().split()[-1])
-    input_rows = float(input_header[1].strip().split()[-1])
+    # input_cols = float(input_header[0].strip().split()[-1])
+    # input_rows = float(input_header[1].strip().split()[-1])
     # DEADBEEF - I need to check cell corner vs. cell center here
-    input_xmin = float(input_header[2].strip().split()[-1])
-    input_ymin = float(input_header[3].strip().split()[-1])
-    input_cs = float(input_header[4].strip().split()[-1])
+    # input_xmin = float(input_header[2].strip().split()[-1])
+    # input_ymin = float(input_header[3].strip().split()[-1])
+    # input_cs = float(input_header[4].strip().split()[-1])
     input_nodata = float(input_header[5].strip().split()[-1])
-    input_geo = (
-        input_cs, 0., input_xmin,
-        0., -input_cs, input_ymin + input_cs * input_rows)
+    # input_geo = (
+    #     input_cs, 0., input_xmin,
+    #     0., -input_cs, input_ymin + input_cs * input_rows
+    # )
 
-    output_array = np.genfromtxt(
-        input_ascii, dtype=input_type, skip_header=6)
+    output_array = np.genfromtxt(input_ascii, dtype=input_type, skip_header=6)
     output_array[output_array == input_nodata] = np.nan
 
     return output_array

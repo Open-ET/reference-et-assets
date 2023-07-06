@@ -25,7 +25,8 @@ if 'FUNCTION_REGION' in os.environ:
     logging.debug(f'\nInitializing GEE using application default credentials')
     import google.auth
     credentials, project_id = google.auth.default(
-        default_scopes=['https://www.googleapis.com/auth/earthengine'])
+        default_scopes=['https://www.googleapis.com/auth/earthengine']
+    )
     ee.Initialize(credentials)
 
 logging.getLogger('earthengine-api').setLevel(logging.INFO)
@@ -35,13 +36,14 @@ logging.getLogger('rasterio').setLevel(logging.INFO)
 logging.getLogger('urllib3').setLevel(logging.INFO)
 
 ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                'projects/openet/reference_et/cimis/daily'
+                'projects/openet/reference_et/california/cimis/daily/v1'
+# ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
+#                 'projects/openet/reference_et/cimis/daily'
 ASSET_DT_FMT = '%Y%m%d'
 BUCKET_NAME = 'openet'
 BUCKET_FOLDER = 'cimis/daily'
 FUNCTION_URL = 'https://us-central1-openet.cloudfunctions.net'
-FUNCTION_NAME = 'cimis-reference-et-daily-worker'
-GEE_KEY_FILE = 'openet-gee.json'
+FUNCTION_NAME = 'cimis-reference-et-daily-v1-worker'
 PROJECT_NAME = 'openet'
 SOURCE_URL = 'https://spatialcimis.water.ca.gov/cimis'
 # This server stopped updating in 2019 but is useful for filling in missing dates
@@ -50,8 +52,9 @@ SOURCE_URL = 'https://spatialcimis.water.ca.gov/cimis'
 STORAGE_CLIENT = storage.Client(project=PROJECT_NAME)
 TASK_LOCATION = 'us-central1'
 TASK_QUEUE = 'ee-single-worker'
+VARIABLES = ['eto', 'etr']
 # VARIABLES = ['eto']
-VARIABLES = ['eto', 'eto_asce', 'etr_asce']
+# VARIABLES = ['eto', 'eto_asce', 'etr_asce']
 # VARIABLES = ['Tdew', 'Tx', 'Tn', 'Rnl', 'Rs', 'K', 'U2',
 #              'eto', 'eto_asce', 'etr_asce']
 START_DAY_OFFSET = 365
@@ -98,9 +101,11 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
     # Define which CIMIS variables are needed for each user variable
     # ASCE ETo/ETr are computed from the components
     gz_vars = {
-        'eto_asce': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
-        'etr_asce': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
-        'eto': ['ETo'],
+        'eto': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
+        'etr': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
+        # 'eto_asce': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
+        # 'etr_asce': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
+        # 'eto': ['ETo'],
         'K': ['K'],
         'Rnl': ['Rnl'],
         'Rs': ['Rs'],
@@ -113,7 +118,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
     # Define mapping of CIMIS variables to output file names
     # For now, these need to be identical to the user variable names
     gz_remap = {
-        'ETo': 'eto',
+        # 'ETo': 'eto',
         'K': 'K',
         'Rnl': 'Rnl',
         'Rs': 'Rs',
@@ -180,14 +185,14 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
 
     asset_proj = rasterio.crs.CRS.from_proj4(
         '+proj=aea +lat_1=34 +lat_2=40.5 +lat_0=0 +lon_0=-120 ' +
-        '+x_0=0 +y_0=-4000000 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
+        '+x_0=0 +y_0=-4000000 +ellps=GRS80 +datum=NAD83 +units=m +no_defs'
+    )
     # asset_proj = 'EPSG:3310'  # NAD_1983_California_Teale_Albers
     logging.debug(f'CRS: {asset_proj}')
 
 
     logging.debug('Downloading component ASZ GZ files')
-    gz_var_list = sorted(list(set(
-        gz_var for v in variables for gz_var in gz_variables[v])))
+    gz_var_list = sorted(list(set(gz_var for v in variables for gz_var in gz_variables[v])))
     # logging.info(f'  GZ Variables: {gz_var_list}')
     for gz_var in gz_var_list:
         logging.debug(f'Variable: {gz_var}')
@@ -270,10 +275,12 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
             int_xi, int_yi = array_geo_offsets(asset_geo, output_geo, asset_cs)
             pad_width = (
                 (int_yi, asset_height - output_shape[0] - int_yi),
-                (int_xi, asset_width - output_shape[1] - int_xi))
+                (int_xi, asset_width - output_shape[1] - int_xi)
+            )
             logging.debug(f'    Pad: {pad_width}')
             output_array = np.lib.pad(
-                output_array, pad_width, 'constant', constant_values=-9999.0)
+                output_array, pad_width, 'constant', constant_values=-9999.0
+            )
         elif output_geo != asset_geo:
             logging.warning(f'  Unexpected input {gz_var} array transform\n'
                             f'    Shape: {output_shape}\n'
@@ -289,13 +296,15 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
         # DEADBEEF
         # os.remove(asc_path)
 
-    if 'eto_asce' in variables or 'etr_asce' in variables:
+    # if 'eto_asce' in variables or 'etr_asce' in variables:
+    if 'eto' in variables or 'etr' in variables:
         logging.debug('\nComputing Reference ET')
         refet_vars = {'Rs', 'Tdew', 'Tx', 'Tn', 'U2'}
         if not refet_vars.issubset(set(daily_arrays.keys())):
             logging.warning(
                 '  Missing input variable(s) for computing ASCE ETo/ETr, skipping date\n'
-                '    {}'.format(', '.join(list(refet_vars - input_vars))))
+                '    {}'.format(', '.join(list(refet_vars - input_vars)))
+            )
             return f'{tgt_date} - Missing input variable(s) for computing reference ET\n'
 
         # Elevation
@@ -325,7 +334,8 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
         #     lat_array = src.read(1)
 
         for variable in variables:
-            if variable not in ['eto_asce', 'etr_asce']:
+            # if variable not in ['eto_asce', 'etr_asce']:
+            if variable not in ['eto', 'etr']:
                 continue
             logging.debug(f'{variable}')
             refet_obj = refet.Daily(
@@ -334,10 +344,15 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
                 ea=refet.calcs._sat_vapor_pressure(daily_arrays['Tdew']),
                 # Force solar to be >= 0
                 rs=np.maximum(daily_arrays['Rs'], 0),
-                uz=daily_arrays['U2'], zw=2, elev=elev_array, lat=lat_array,
-                doy=int(tgt_dt.strftime('%j')), method='asce',
-                input_units={'tmax': 'C', 'tmin': 'C', 'ea': 'kPa',
-                             'rs': 'MJ m-2 d-1', 'uz': 'm s-1', 'lat': 'deg'})
+                uz=daily_arrays['U2'], zw=2,
+                elev=elev_array, lat=lat_array,
+                doy=int(tgt_dt.strftime('%j')),
+                method='asce',
+                input_units={
+                    'tmax': 'C', 'tmin': 'C', 'ea': 'kPa',
+                    'rs': 'MJ m-2 d-1', 'uz': 'm s-1', 'lat': 'deg'
+                },
+            )
             output_array = refet_obj.etsz(variable.split('_')[0].lower())
 
             # Assume that if temp, tdew and wind are all zero
@@ -407,7 +422,8 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
         'date_ingested': f'{datetime.datetime.today().strftime("%Y-%m-%d")}',
         'source': SOURCE_URL.replace('https://', '').replace('http://', ''),
     }
-    if 'eto_asce' in variables or 'etr_asce' in variables:
+    # if 'eto_asce' in variables or 'etr_asce' in variables:
+    if 'eto' in variables or 'etr' in variables:
         properties['refet_version'] = f'{refet.__version__}'
 
     # NOTE: The band names are being forced to lower case here
@@ -428,6 +444,8 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
         # 'pyramiding_policy': 'MEAN',
         # 'missingData': {'values': [nodata_value]},
     }
+
+    # TODO: Wrap in a try/except loop
     ee.data.startIngestion(task_id, params, allow_overwrite=True)
 
     if os.path.isdir(date_ws):
@@ -454,10 +472,8 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
     logging.debug(f'  {start_dt.strftime("%Y-%m-%d")}')
     logging.debug(f'  {end_dt.strftime("%Y-%m-%d")}')
 
-    task_id_re = re.compile(
-        ASSET_COLL_ID.split('projects/')[-1] + '/(?P<date>\d{8})$')
-    asset_id_re = re.compile(
-        ASSET_COLL_ID.split('projects/')[-1] + '/(?P<date>\d{8})$')
+    task_id_re = re.compile(ASSET_COLL_ID.split('projects/')[-1] + '/(?P<date>\d{8})$')
+    asset_id_re = re.compile(ASSET_COLL_ID.split('projects/')[-1] + '/(?P<date>\d{8})$')
 
     # Figure out which asset dates need to be ingested
     # Start with a list of dates to check
@@ -467,7 +483,8 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
         logging.info('Empty date range')
         return []
     logging.debug('\nInitial test dates: {}'.format(
-        ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), tgt_dt_list))))
+        ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), tgt_dt_list))
+    ))
 
     # Check if any of the needed dates are currently being ingested
     # Check task list before checking asset list in case a task switches
@@ -475,21 +492,25 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
     logging.debug('\nChecking task list')
     task_id_list = [
         desc.replace('\nAsset ingestion: ', '')
-        for desc in get_ee_tasks(states=['RUNNING', 'READY']).keys()]
+        for desc in get_ee_tasks(states=['RUNNING', 'READY']).keys()
+    ]
     task_dates = {
         datetime.datetime.strptime(m.group('date'), ASSET_DT_FMT).strftime('%Y-%m-%d')
-        for task_id in task_id_list for m in [task_id_re.search(task_id)] if m}
+        for task_id in task_id_list for m in [task_id_re.search(task_id)] if m
+    }
     # logging.debug(f'\nTask dates: {", ".join(sorted(task_dates))}')
 
     # Switch date list to be dates that are missing
     tgt_dt_list = [
         dt for dt in tgt_dt_list
-        if overwrite_flag or dt.strftime('%Y-%m-%d') not in task_dates]
+        if overwrite_flag or dt.strftime('%Y-%m-%d') not in task_dates
+    ]
     if not tgt_dt_list:
         logging.info('No dates to process after checking ready/running tasks')
         return []
     logging.debug('\nDates (after filtering tasks): {}'.format(
-        ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), tgt_dt_list))))
+        ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), tgt_dt_list))
+    ))
 
     # TODO: Check "source" parameter for images that were generated by interpolating
 
@@ -497,21 +518,25 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
     # For now, assume the collection exists
     logging.debug('\nChecking existing assets')
     asset_id_list = get_ee_assets(
-        ASSET_COLL_ID, start_dt, end_dt + datetime.timedelta(days=1))
+        ASSET_COLL_ID, start_dt, end_dt + datetime.timedelta(days=1)
+    )
     asset_dates = {
         datetime.datetime.strptime(m.group('date'), ASSET_DT_FMT).strftime('%Y-%m-%d')
-        for asset_id in asset_id_list for m in [asset_id_re.search(asset_id)] if m}
+        for asset_id in asset_id_list for m in [asset_id_re.search(asset_id)] if m
+    }
     logging.debug(f'\nAsset dates: {", ".join(sorted(asset_dates))}')
 
     # Switch date list to be dates that are missing
     tgt_dt_list = [
         dt for dt in tgt_dt_list
-        if overwrite_flag or dt.strftime('%Y-%m-%d') not in asset_dates]
+        if overwrite_flag or dt.strftime('%Y-%m-%d') not in asset_dates
+    ]
     if not tgt_dt_list:
         logging.info('No dates to process after filtering existing assets')
         return []
     logging.debug('\nDates (after filtering existing assets): {}'.format(
-        ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), tgt_dt_list))))
+        ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), tgt_dt_list))
+    ))
 
     # Check if the folders exist on the server
     # CGM - Most of the time there will only be one date in this list,
@@ -536,7 +561,8 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
         logging.info('No dates to process after checking server folders')
         return []
     logging.debug('\nIngest dates: {}'.format(
-        ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), tgt_dt_list))))
+        ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), tgt_dt_list))
+    ))
 
     return tgt_dt_list
 
@@ -782,7 +808,7 @@ def queue_ingest_tasks(tgt_dt_list):
 
         # Using the default name in the request can create duplicate tasks
         # Trying out adding the timestamp to avoid this for testing/debug
-        name = f'{parent}/tasks/cimis_daily_asset_{tgt_dt.strftime("%Y%m%d")}_' \
+        name = f'{parent}/tasks/cimis_daily_v1_asset_{tgt_dt.strftime("%Y%m%d")}_' \
                f'{datetime.datetime.today().strftime("%Y%m%d%H%M%S")}'
         # name = f'{parent}/tasks/cimis_daily_asset_{tgt_dt.strftime("%Y%m%d")}'
         response += name + '\n'
@@ -795,7 +821,8 @@ def queue_ingest_tasks(tgt_dt_list):
             'http_request': {
                 'http_method': tasks_v2.HttpMethod.POST,
                 'url': '{}/{}?date={}'.format(
-                    FUNCTION_URL, FUNCTION_NAME, tgt_dt.strftime('%Y-%m-%d')),
+                    FUNCTION_URL, FUNCTION_NAME, tgt_dt.strftime('%Y-%m-%d')
+                ),
                 # 'url': '{}/{}?date={}&overwrite={}'.format(
                 #     FUNCTION_URL, FUNCTION_NAME, tgt_dt.strftime('%Y-%m-%d'),
                 #     str(overwrite_flag).lower()),
@@ -955,12 +982,14 @@ def get_ee_tasks(states=['RUNNING', 'READY']):
             task_list = ee.data.getTaskList()
             task_list = sorted([
                 [t['state'], t['description'], t['id']]
-                for t in task_list if t['state'] in states])
+                for t in task_list if t['state'] in states
+            ])
             tasks = {t_desc: t_id for t_state, t_desc, t_id in task_list}
             break
         except Exception as e:
             logging.info(f'  Error getting active task list, retrying ({i}/6)\n  {e}')
-            time.sleep(i ** 2)
+            time.sleep(i ** 3)
+
     return tasks
 
 
@@ -1019,6 +1048,37 @@ def url_download(download_url, output_path, verify=True):
 #         output_f.write(download_response.content)
 #     time.sleep(0.1)
 #     return True
+
+
+# def get_info(ee_obj, max_retries=4):
+#     """Make an exponential back off getInfo call on an Earth Engine object"""
+#     # output = ee_obj.getInfo()
+#     output = None
+#     for i in range(1, max_retries):
+#         try:
+#             output = ee_obj.getInfo()
+#         except ee.ee_exception.EEException as e:
+#             if ('Earth Engine memory capacity exceeded' in str(e) or
+#                     'Earth Engine capacity exceeded' in str(e) or
+#                     'Too many concurrent aggregations' in str(e) or
+#                     'Computation timed out.' in str(e)):
+#                 # TODO: Maybe add 'Connection reset by peer'
+#                 logging.info(f'    Resending query ({i}/{max_retries})')
+#                 logging.info(f'    {e}')
+#             else:
+#                 # TODO: What should happen for unhandled EE exceptions?
+#                 logging.info('    Unhandled Earth Engine exception')
+#                 logging.info(f'    {e}')
+#         except Exception as e:
+#             logging.info(f'    Resending query ({i}/{max_retries})')
+#             logging.debug(f'    {e}')
+#
+#         if output:
+#             break
+#         else:
+#             time.sleep(i ** 3)
+#
+#     return output
 
 
 def arg_valid_date(input_date):
@@ -1131,14 +1191,16 @@ if __name__ == '__main__':
     #     ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, ASSET_COLL_ID)
 
     ingest_dt_list = cimis_daily_asset_dates(
-        args.start, args.end, overwrite_flag=args.overwrite)
+        args.start, args.end, overwrite_flag=args.overwrite
+    )
     # print(ingest_dt_list)
     # input('ENTER')
 
     for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
         response = cimis_daily_asset_ingest(
             ingest_dt, variables=args.variables, workspace=args.workspace,
-            overwrite_flag=args.overwrite)
+            overwrite_flag=args.overwrite
+        )
         logging.info(f'  {response}')
 
     # queue_ingest_tasks(ingest_dt_list)

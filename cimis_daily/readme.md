@@ -4,9 +4,9 @@ Spatial CIMIS is currently being ingested as Earth Engine assets using cloud fun
 
 ## Assets
 
-Collection ID: projects/openet/reference_et/cimis/daily
+Collection ID: projects/openet/reference_et/california/cimis/daily/v1
 
-Bands: eto, eto_asce, etr_asce
+Bands: eto, etr
 
 Image name format: YYYYMMDD
 
@@ -14,7 +14,7 @@ Timestep: daily
 
 ### Reference ET
 
-ASCE Standardize Reference ET is being computed from the component variables using the Refet module (https://github.com/WSWUP/refet).  The "grass" and "aflfalfa" reference ET bands are named "eto_asce" and "etr_asce".
+ASCE Standardize Reference ET is being computed from the component variables using the Refet module (https://github.com/WSWUP/refet).  The "grass" and "aflfalfa" reference ET bands are named "eto" and "etr".
 
 ## Availability
 
@@ -75,29 +75,29 @@ echo %GOOGLE_APPLICATION_CREDENTIALS%
 
 The following are the parameters that were set when deploying the function for the first time.  Subsequent deployments only need the project if not set above.
 ```
-gcloud functions deploy cimis-reference-et-daily-scheduler --project openet --runtime python37 --entry-point cron_scheduler --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1
+gcloud functions deploy cimis-reference-et-daily-v1-scheduler --project openet --runtime python37 --entry-point cron_scheduler --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1
 
-gcloud functions deploy cimis-reference-et-daily-worker --project openet --runtime python37 --entry-point cron_worker --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1
+gcloud functions deploy cimis-reference-et-daily-v1-worker --project openet --runtime python37 --entry-point cron_worker --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1
 ```
 
 ### Calling the cloud function
 
 The functions can be called by passing JSON data to the function.
 ```
-gcloud functions call cimis-reference-et-daily-worker --project openet --data '{"date":"2020-09-01"}'
-gcloud functions call cimis-reference-et-daily-scheduler --project openet --data '{"start":"2020-11-01","end":"2020-11-05"}'
-gcloud functions call cimis-reference-et-daily-scheduler --project openet --data '{"days":"60"}'
+gcloud functions call cimis-reference-et-daily-v1-worker --project openet --data '{"date":"2020-09-01"}'
+gcloud functions call cimis-reference-et-daily-v1-scheduler --project openet --data '{"start":"2020-11-01","end":"2020-11-05"}'
+gcloud functions call cimis-reference-et-daily-v1-scheduler --project openet --data '{"days":"60"}'
 ```
 
 If no arguments are passed to the scheduler it will check the last year for missing assets.
 ```
-gcloud functions call cimis-reference-et-daily-scheduler --project openet
+gcloud functions call cimis-reference-et-daily-v1-scheduler --project openet
 ```
 
 ### Scheduling the job
 
 ```
-gcloud scheduler jobs update http cimis-reference-et-daily --schedule "5 12 * * *" --uri "https://us-central1-openet.cloudfunctions.net/cimis-reference-et-daily-scheduler?days=60" --description "Spatial CIMIS Daily Assets" --http-method POST --time-zone "UTC" --project openet --location us-central1 --max-retry-attempts 5 --attempt-deadline 300s --min-backoff=20s
+gcloud scheduler jobs update http cimis-reference-et-daily-v1 --schedule "7 12 * * *" --uri "https://us-central1-openet.cloudfunctions.net/cimis-reference-et-daily-v1-scheduler?days=60" --description "Spatial CIMIS Daily Assets" --http-method POST --time-zone "UTC" --project openet --location us-central1 --max-retry-attempts 3 --attempt-deadline 300s --min-backoff=20s
 ```
 
 ### Create tasks queue

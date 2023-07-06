@@ -15,7 +15,8 @@ if 'FUNCTION_REGION' in os.environ:
     logging.debug(f'\nInitializing GEE using application default credentials')
     import google.auth
     credentials, project_id = google.auth.default(
-        default_scopes=['https://www.googleapis.com/auth/earthengine'])
+        default_scopes=['https://www.googleapis.com/auth/earthengine']
+    )
     ee.Initialize(credentials)
 
 # logging.getLogger('earthengine-api').setLevel(logging.INFO)
@@ -24,18 +25,23 @@ logging.getLogger('requests').setLevel(logging.INFO)
 logging.getLogger('urllib3').setLevel(logging.INFO)
 
 ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                 'projects/openet/reference_et/cimis/monthly'
+                 'projects/openet/reference_et/california/cimis/monthly/v1'
+# ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
+#                  'projects/openet/reference_et/cimis/monthly'
 ASSET_DT_FMT = '%Y%m'
-GEE_KEY_FILE = 'openet-gee.json'
 SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                 'projects/openet/reference_et/cimis/daily'
+                 'projects/openet/reference_et/california/cimis/daily/v1'
+# SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
+#                  'projects/openet/reference_et/cimis/daily'
 START_MONTH_OFFSET = 1
 END_MONTH_OFFSET = 0
+INPUT_BANDS = ['eto', 'etr']
+OUTPUT_BANDS = ['eto', 'etr']
 # CGM - The "eto" and "eto_asce" bands in CIMIS can be slightly different
 # The models are currently using the "eto_asce" band, not "eto",
 #   so we may want to build the monthly collection using that band also
-INPUT_BANDS = ['eto', 'eto_asce', 'etr_asce']
-OUTPUT_BANDS = ['eto', 'eto_asce', 'etr_asce']
+# INPUT_BANDS = ['eto', 'eto_asce', 'etr_asce']
+# OUTPUT_BANDS = ['eto', 'eto_asce', 'etr_asce']
 # INPUT_BANDS = ['eto_asce', 'etr_asce']
 # OUTPUT_BANDS = ['eto', 'etr']
 
@@ -59,7 +65,7 @@ def cimis_monthly_ingest(tgt_dt, overwrite_flag=False):
     # response = f'CIMIS Monthly Reference ET - {tgt_dt.strftime("%Y-%m")}'
 
     asset_id = f'{ASSET_COLL_ID}/{tgt_dt.strftime(ASSET_DT_FMT)}'
-    export_name = f'cimis_monthly_reference_et_{tgt_dt.strftime("%Y%m%d")}'
+    export_name = f'cimis_reference_et_monthly_v1_{tgt_dt.strftime("%Y%m%d")}'
     logging.debug(f'  {SOURCE_COLL_ID}')
     logging.debug(f'  {asset_id}')
     logging.debug(f'  {export_name}')
@@ -84,7 +90,7 @@ def cimis_monthly_ingest(tgt_dt, overwrite_flag=False):
     asset_geo_str = '[' + ','.join(list(map(str, asset_geo))) + ']'
 
     asset_crs = ee.ImageCollection(SOURCE_COLL_ID).first().projection()
-    # asset_crs = ee.ImageCollection(SOURCE_COLL_ID).first().projection().getInfo()['wkt']
+    # asset_crs = get_info(ee.ImageCollection(SOURCE_COLL_ID).first().projection())['wkt']
     # asset_proj4 = (
     #     '+proj=aea +lat_1=34 +lat_2=40.5 +lat_0=0 +lon_0=-120 ' +
     #     '+x_0=0 +y_0=-4000000 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
@@ -93,30 +99,33 @@ def cimis_monthly_ingest(tgt_dt, overwrite_flag=False):
     #         '+x_0=0 +y_0=-4000000 +ellps=GRS80 +datum=NAD83 +units=m +no_defs')
     # asset_proj = 'EPSG:3310'  # NAD_1983_California_Teale_Albers
 
-    source_coll = ee.ImageCollection(SOURCE_COLL_ID)\
-        .filterDate(tgt_dt, tgt_dt + relativedelta(months=1))\
+    source_coll = (
+        ee.ImageCollection(SOURCE_COLL_ID)
+        .filterDate(tgt_dt, tgt_dt + relativedelta(months=1))
         .select(INPUT_BANDS)
+    )
 
     # TODO: Decide if the scheduler should be responsible for checking if there
     #   are enough source images
     # TODO: Wrap getInfo call in a try/except loop
-    source_count = source_coll.size().getInfo()
+    source_count = get_info(source_coll.size())
     if source_count != monthrange(tgt_dt.year, tgt_dt.month)[1]:
         return f'{export_name} - too few source images ({source_count}) for month\n'
 
-    output_img = source_coll.sum()\
-        .rename(OUTPUT_BANDS)\
-        .set({
-            'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
-            # 'scale_factor': 1.0,
-            'scale_factor_et_reference': 1.0,
-            'scale_factor_eto': 1.0,
-            'scale_factor_etr': 1.0,
-            'source_bands': ','.join(INPUT_BANDS),
-            # CGM: Should we use the UTC 0 time_start or the CIMIS time_start?
-            'system:time_start': ee.Date(tgt_dt.strftime('%Y-%m-%d')).millis(),
-            'system:index': tgt_dt.strftime(ASSET_DT_FMT),
-        })
+    properties = {
+        'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
+        # 'scale_factor': 1.0,
+        # TODO: Check if these property names should be changed to match the band names
+        'scale_factor_et_reference': 1.0,
+        'scale_factor_eto': 1.0,
+        'scale_factor_etr': 1.0,
+        'source_bands': ','.join(INPUT_BANDS),
+        # CGM: Should we use the UTC 0 time_start or the CIMIS time_start?
+        'system:time_start': ee.Date(tgt_dt.strftime('%Y-%m-%d')).millis(),
+        'system:index': tgt_dt.strftime(ASSET_DT_FMT),
+    }
+
+    output_img = source_coll.sum().rename(OUTPUT_BANDS).set(properties)
 
     export_task = ee.batch.Export.image.toAsset(
         image=output_img,
@@ -127,6 +136,7 @@ def cimis_monthly_ingest(tgt_dt, overwrite_flag=False):
         crsTransform=asset_geo_str,
     )
 
+    # TODO: Wrap in try/except loop
     # Start the export task
     export_task.start()
 
@@ -184,8 +194,7 @@ def cron_scheduler(request):
         start_dt = (datetime.datetime(today.year, today.month, 1) -
                     relativedelta(months=START_MONTH_OFFSET))
         end_dt = (datetime.datetime(today.year, today.month, 1) -
-                  relativedelta(days=1) - \
-                  relativedelta(days=END_MONTH_OFFSET))
+                  relativedelta(days=1) - relativedelta(days=END_MONTH_OFFSET))
     elif start_date and end_date:
         # Only process custom range if start and end are both set
         # Limit the end date to the last full month date
@@ -198,8 +207,7 @@ def cron_scheduler(request):
             abort(404, description=response)
 
         # Force end date to be last day of previous month
-        end_dt = min(end_dt,
-                     datetime.datetime.today() - datetime.timedelta(days=1))
+        end_dt = min(end_dt, datetime.datetime.today() - datetime.timedelta(days=1))
 
         # TODO: Force start date to be at least one month before end
         # start_dt = min(
@@ -240,7 +248,8 @@ def cimis_monthly_dates(start_dt, end_dt, overwrite_flag=False):
 
     task_id_re = re.compile('cimis_monthly_reference_et_(?P<date>\d{8})')
     # asset_id_re = re.compile(
-    #     ASSET_COLL_ID.split('projects/')[-1] + '/(?P<date>\d{6})$')
+    #     ASSET_COLL_ID.split('projects/')[-1] + '/(?P<date>\d{6})$'
+    # )
 
     # Figure out which asset dates need to be ingested
     # Start with a list of dates to check
@@ -250,29 +259,34 @@ def cimis_monthly_dates(start_dt, end_dt, overwrite_flag=False):
         logging.info('Empty date range')
         return []
     # logging.info('\nTest dates: {}'.format(
-    #     ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), test_dt_list))))
+    #     ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), test_dt_list))
+    # ))
 
     # Check if any of the needed dates are currently being ingested
     # Check task list before checking asset list in case a task switches
     #   from running to done before the asset list is retrieved.
     task_id_list = [
         desc.replace('\nAsset ingestion: ', '')
-        for desc in get_ee_tasks(states=['RUNNING', 'READY']).keys()]
+        for desc in get_ee_tasks(states=['RUNNING', 'READY']).keys()
+    ]
     task_dates = {
         datetime.datetime.strptime(m.group('date'), '%Y%m%d').strftime('%Y-%m-%d')
-        for task_id in task_id_list for m in [task_id_re.search(task_id)] if m}
+        for task_id in task_id_list for m in [task_id_re.search(task_id)] if m
+    }
     # logging.debug(f'\nTask dates: {", ".join(sorted(task_dates))}')
 
     # Switch date list to be dates that are missing
     test_dt_list = [
         dt for dt in test_dt_list
-        if overwrite_flag or dt.strftime('%Y-%m-%d') not in task_dates]
+        if overwrite_flag or dt.strftime('%Y-%m-%d') not in task_dates
+    ]
     if not test_dt_list:
         logging.info('All dates are queued for export')
         return []
     # else:
     #     logging.info('\nMissing asset dates: {}'.format(', '.join(
-    #         map(lambda x: x.strftime('%Y-%m-%d'), test_dt_list))))
+    #         map(lambda x: x.strftime('%Y-%m-%d'), test_dt_list)
+    #     )))
 
     # Check if the assets already exist
     # For now, assume the collection exists
@@ -282,25 +296,28 @@ def cimis_monthly_dates(start_dt, end_dt, overwrite_flag=False):
     asset_date_coll = ee.ImageCollection(ASSET_COLL_ID) \
             .filterDate(start_dt.strftime('%Y-%m-%d'),
                         filter_end_dt.strftime('%Y-%m-%d'))
-    asset_dates = set(asset_date_coll.aggregate_array('system:index').getInfo())
+    asset_dates = set(get_info(asset_date_coll.aggregate_array('system:index')))
     # asset_id_list = get_ee_assets(
     #     ASSET_COLL_ID, start_dt, end_dt + datetime.timedelta(days=1))
     # asset_date_list = [
     #     datetime.datetime.strptime(m.group('date'), ASSET_DT_FMT)
     #         .strftime('%Y-%m-%d')
     #     for asset_id in asset_id_list
-    #     for m in [asset_id_re.search(asset_id)] if m]
+    #     for m in [asset_id_re.search(asset_id)] if m
+    # ]
     logging.debug(f'\nAsset dates: {", ".join(sorted(asset_dates))}')
 
     # Switch date list to be dates that are missing
     test_dt_list = [
         dt for dt in test_dt_list
-        if overwrite_flag or dt.strftime(ASSET_DT_FMT) not in asset_dates]
+        if overwrite_flag or dt.strftime(ASSET_DT_FMT) not in asset_dates
+    ]
     if not test_dt_list:
         logging.info('No dates to process after filtering existing assets')
         return []
     logging.debug('\nDates (after filtering existing assets): {}'.format(
-        ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), test_dt_list))))
+        ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), test_dt_list))
+    ))
 
     # TODO: Should the source collection be checked here to see if there are
     #   enough images?
@@ -358,23 +375,57 @@ def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=6):
             break
         except Exception as e:
             logging.warning(
-                f'  Error getting task list, retrying ({i}/{retries})\n  {e}')
-            time.sleep((i+1) ** 2)
+                f'  Error getting task list, retrying ({i}/{retries})\n  {e}'
+            )
+            time.sleep((i+1) ** 3)
+
     if task_list is None:
         raise Exception('\nUnable to retrieve task list, exiting')
 
     task_list = sorted(
         [task for task in task_list if task['state'] in states],
-        key=lambda t: (t['state'], t['description'], t['id']))
+        key=lambda t: (t['state'], t['description'], t['id'])
+    )
     # task_list = sorted([
     #     [t['state'], t['description'], t['id']] for t in task_list
-    #     if t['state'] in states])
+    #     if t['state'] in states
+    # ])
 
     # Convert the task list to a dictionary with the task name as the key
     return {task['description']: task for task in task_list}
 
 
-# TODO: Pull from openet.core
+def get_info(ee_obj, max_retries=4):
+    """Make an exponential back off getInfo call on an Earth Engine object"""
+    # output = ee_obj.getInfo()
+    output = None
+    for i in range(1, max_retries):
+        try:
+            output = ee_obj.getInfo()
+        except ee.ee_exception.EEException as e:
+            if ('Earth Engine memory capacity exceeded' in str(e) or
+                    'Earth Engine capacity exceeded' in str(e) or
+                    'Too many concurrent aggregations' in str(e) or
+                    'Computation timed out.' in str(e)):
+                # TODO: Maybe add 'Connection reset by peer'
+                logging.info(f'    Resending query ({i}/{max_retries})')
+                logging.info(f'    {e}')
+            else:
+                # TODO: What should happen for unhandled EE exceptions?
+                logging.info('    Unhandled Earth Engine exception')
+                logging.info(f'    {e}')
+        except Exception as e:
+            logging.info(f'    Resending query ({i}/{max_retries})')
+            logging.debug(f'    {e}')
+
+        if output:
+            break
+        else:
+            time.sleep(i ** 3)
+
+    return output
+
+
 def arg_valid_date(input_date):
     """Check that a date string is ISO format (YYYY-MM-DD)
 
@@ -469,19 +520,21 @@ if __name__ == '__main__':
         logging.info('\nInitializing Earth Engine using user credentials')
         ee.Initialize()
 
-    # # Build the image collection if it doesn't exist
-    # logging.debug('Image Collection: {}'.format(ASSET_COLL_ID))
-    # if not ee.data.getInfo(ASSET_COLL_ID):
-    #     logging.info('\nImage collection does not exist and will be built'
-    #                  '\n  {}'.format(ASSET_COLL_ID))
-    #     input('Press ENTER to continue')
-    #     ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, ASSET_COLL_ID)
+    # Build the image collection if it doesn't exist
+    logging.debug('Image Collection: {}'.format(ASSET_COLL_ID))
+    if not ee.data.getInfo(ASSET_COLL_ID):
+        logging.info('\nImage collection does not exist and will be built'
+                     '\n  {}'.format(ASSET_COLL_ID))
+        input('Press ENTER to continue')
+        ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, ASSET_COLL_ID)
 
     ingest_dt_list = cimis_monthly_dates(
-        args.start, args.end, overwrite_flag=args.overwrite)
+        args.start, args.end, overwrite_flag=args.overwrite
+    )
 
     for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
         # logging.info(f'Date: {ingest_dt.strftime("%Y-%m-%d")}')
         response = cimis_monthly_ingest(
-            ingest_dt,  overwrite_flag=args.overwrite)
+            ingest_dt,  overwrite_flag=args.overwrite
+        )
         logging.info(f'  {response}')
