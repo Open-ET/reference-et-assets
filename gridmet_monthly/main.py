@@ -11,20 +11,7 @@ from flask import abort, Response
 
 # import openet.core.utils as utils
 
-if 'FUNCTION_REGION' in os.environ:
-    # Assume code is deployed to a cloud function
-    logging.debug(f'\nInitializing GEE using application default credentials')
-    import google.auth
-    credentials, project_id = google.auth.default(
-        default_scopes=['https://www.googleapis.com/auth/earthengine']
-    )
-    ee.Initialize(credentials)
-
-# logging.getLogger('earthengine-api').setLevel(logging.INFO)
-# logging.getLogger('googleapiclient').setLevel(logging.ERROR)
-logging.getLogger('requests').setLevel(logging.INFO)
-logging.getLogger('urllib3').setLevel(logging.INFO)
-
+PROJECT_NAME = 'openet'
 ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
                  'projects/openet/reference_et/conus/gridmet/monthly/v1'
 SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
@@ -35,6 +22,35 @@ SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
 #                  'projects/openet/reference_et/gridmet/daily'
 START_MONTH_OFFSET = 3
 END_MONTH_OFFSET = 0
+
+if 'FUNCTION_REGION' in os.environ:
+    # Logging is not working correctly in cloud functions for Python 3.8+
+    # Following workflow suggested in this issue:
+    # https://issuetracker.google.com/issues/124403972
+    import google.cloud.logging
+    log_client = google.cloud.logging.Client(project=PROJECT_NAME)
+    log_client.setup_logging(log_level=20)
+    import logging
+    # DEADBEEF - Not sure if these lines are needed or not
+    # logging.basicConfig(level=logging.INFO)
+    # logger = logging.getLogger(__name__)
+    # logger.setLevel(logging.INFO)
+else:
+    import logging
+    # logging.basicConfig(level=logging.INFO, format='%(message)s')
+    # logging.getLogger('earthengine-api').setLevel(logging.INFO)
+    # logging.getLogger('googleapiclient').setLevel(logging.ERROR)
+    logging.getLogger('requests').setLevel(logging.INFO)
+    logging.getLogger('urllib3').setLevel(logging.INFO)
+
+if 'FUNCTION_REGION' in os.environ:
+    # Assume code is deployed to a cloud function
+    logging.debug(f'\nInitializing GEE using application default credentials')
+    import google.auth
+    credentials, project_id = google.auth.default(
+        default_scopes=['https://www.googleapis.com/auth/earthengine']
+    )
+    ee.Initialize(credentials)
 
 
 def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
@@ -52,8 +68,8 @@ def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
     """
 
     # tgt_date = tgt_dt.strftime('%Y%m%d')
-    logging.info(f'GRIDMET Monthly Bias Corrected Reference ET - '
-                 f'{tgt_dt.strftime("%Y-%m-%d")}')
+    print(f'GRIDMET Monthly Bias Corrected Reference ET - '
+          f'{tgt_dt.strftime("%Y-%m-%d")}')
     # response = f'GRIDMET Monthly Bias Corrected Reference ET - ' \
     #            f'{tgt_dt.strftime("%Y-%m")}'
 
@@ -233,7 +249,7 @@ def cron_scheduler(request):
     }
 
     for tgt_dt in gridmet_monthly_dates(**args):
-        logging.info(f'Date: {tgt_dt.strftime("%Y-%m-%d")}')
+        print(f'Date: {tgt_dt.strftime("%Y-%m-%d")}')
         # response += f'Date: {tgt_dt.strftime("%Y-%m-%d")}\n'
         response += gridmet_monthly_asset_export(tgt_dt, overwrite_flag=True)
 
@@ -255,9 +271,9 @@ def gridmet_monthly_dates(start_dt, end_dt, overwrite_flag=False):
     # logging.debug('\nBuilding Date List')
     test_dt_list = list(month_range(start_dt, end_dt))
     if not test_dt_list:
-        logging.info('Empty date range')
+        print('Empty date range')
         return []
-    # logging.info('\nTest dates: {}'.format(
+    # print('\nTest dates: {}'.format(
     #     ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), test_dt_list))
     # ))
 
@@ -280,10 +296,10 @@ def gridmet_monthly_dates(start_dt, end_dt, overwrite_flag=False):
         if overwrite_flag or dt.strftime('%Y-%m-%d') not in task_dates
     ]
     if not test_dt_list:
-        logging.info('All dates are queued for export')
+        print('All dates are queued for export')
         return []
     # else:
-    #     logging.info('\nMissing asset dates: {}'.format(', '.join(
+    #     print('\nMissing asset dates: {}'.format(', '.join(
     #         map(lambda x: x.strftime('%Y-%m-%d'), test_dt_list))))
 
 
@@ -308,7 +324,7 @@ def gridmet_monthly_dates(start_dt, end_dt, overwrite_flag=False):
         if overwrite_flag or dt.strftime('%Y%m') not in tgt_perm_dates
     ]
     if not test_dt_list:
-        logging.info('All dates were built with permanent status images')
+        print('All dates were built with permanent status images')
         return []
 
     return test_dt_list
@@ -562,14 +578,14 @@ def get_info(ee_obj, max_retries=4):
                     'Too many concurrent aggregations' in str(e) or
                     'Computation timed out.' in str(e)):
                 # TODO: Maybe add 'Connection reset by peer'
-                logging.info(f'    Resending query ({i}/{max_retries})')
-                logging.info(f'    {e}')
+                print(f'    Resending query ({i}/{max_retries})')
+                print(f'    {e}')
             else:
                 # TODO: What should happen for unhandled EE exceptions?
-                logging.info('    Unhandled Earth Engine exception')
-                logging.info(f'    {e}')
+                print('    Unhandled Earth Engine exception')
+                print(f'    {e}')
         except Exception as e:
-            logging.info(f'    Resending query ({i}/{max_retries})')
+            print(f'    Resending query ({i}/{max_retries})')
             logging.debug(f'    {e}')
 
         if output:

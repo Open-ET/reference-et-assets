@@ -3,7 +3,7 @@ import datetime
 import gzip
 import logging
 import os
-import pprint
+# import pprint
 import re
 import shutil
 import sys
@@ -19,21 +19,6 @@ import rasterio.warp
 import refet
 import requests
 from scipy import ndimage
-
-if 'FUNCTION_REGION' in os.environ:
-    # Assume code is deployed to a cloud function
-    logging.debug(f'\nInitializing GEE using application default credentials')
-    import google.auth
-    credentials, project_id = google.auth.default(
-        default_scopes=['https://www.googleapis.com/auth/earthengine']
-    )
-    ee.Initialize(credentials)
-
-logging.getLogger('earthengine-api').setLevel(logging.INFO)
-logging.getLogger('googleapiclient').setLevel(logging.ERROR)
-logging.getLogger('requests').setLevel(logging.INFO)
-logging.getLogger('rasterio').setLevel(logging.INFO)
-logging.getLogger('urllib3').setLevel(logging.INFO)
 
 ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
                 'projects/openet/reference_et/california/cimis/daily/v1'
@@ -60,9 +45,40 @@ VARIABLES = ['eto', 'etr']
 START_DAY_OFFSET = 365
 END_DAY_OFFSET = 0
 
+if 'FUNCTION_REGION' in os.environ:
+    # Logging is not working correctly in cloud functions for Python 3.8+
+    # Following workflow suggested in this issue:
+    # https://issuetracker.google.com/issues/124403972
+    import google.cloud.logging
+    log_client = google.cloud.logging.Client(project=PROJECT_NAME)
+    log_client.setup_logging(log_level=20)
+    import logging
+    # DEADBEEF - Not sure if these lines are needed or not
+    # logging.basicConfig(level=logging.INFO)
+    # logger = logging.getLogger(__name__)
+    # logger.setLevel(logging.INFO)
+else:
+    import logging
+    # logging.basicConfig(level=logging.INFO, format='%(message)s')
+    logging.getLogger('earthengine-api').setLevel(logging.INFO)
+    logging.getLogger('googleapiclient').setLevel(logging.ERROR)
+    logging.getLogger('requests').setLevel(logging.INFO)
+    logging.getLogger('rasterio').setLevel(logging.INFO)
+    logging.getLogger('urllib3').setLevel(logging.INFO)
 
-def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
-                             overwrite_flag=False):
+if 'FUNCTION_REGION' in os.environ:
+    # Assume code is deployed to a cloud function
+    logging.debug(f'\nInitializing GEE using application default credentials')
+    import google.auth
+    credentials, project_id = google.auth.default(
+        default_scopes=['https://www.googleapis.com/auth/earthengine']
+    )
+    ee.Initialize(credentials)
+else:
+    ee.Initialize()
+
+
+def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag=False):
     """Ingest CIMIS daily data into Earth Engine
 
     Parameters
@@ -86,7 +102,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
 
     """
     tgt_date = tgt_dt.strftime('%Y-%m-%d')
-    logging.info(f'Ingest CIMIS daily asset - {tgt_date}')
+    print(f'Ingest CIMIS daily asset - {tgt_date}')
     # response = f'Ingest CIMIS daily asset - {tgt_date}\n'
 
     date_ws = os.path.join(workspace, tgt_date)
@@ -144,10 +160,10 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
     # # There is only partial CIMIS data before 2003-10-01
     # if start_dt < datetime.datetime(2003, 10, 1):
     #     start_dt = datetime.datetime(2003, 10, 1)
-    #     logging.info(f'Adjusting start date to: {start_dt.strftime("%Y-%m-%d")}')
+    #     print(f'Adjusting start date to: {start_dt.strftime("%Y-%m-%d")}')
     # if end_dt > today_dt:
     #     end_dt = today_dt
-    #     logging.info(f'Adjusting end date to:   {end_dt.strftime("%Y-%m-%d")}\n')
+    #     print(f'Adjusting end date to:   {end_dt.strftime("%Y-%m-%d")}\n')
 
     # Check that user defined variables are valid and in CIMIS
     gz_variables = {}
@@ -193,7 +209,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
 
     logging.debug('Downloading component ASZ GZ files')
     gz_var_list = sorted(list(set(gz_var for v in variables for gz_var in gz_variables[v])))
-    # logging.info(f'  GZ Variables: {gz_var_list}')
+    # print(f'  GZ Variables: {gz_var_list}')
     for gz_var in gz_var_list:
         logging.debug(f'Variable: {gz_var}')
         gz_file = gz_fmt.format(variable=gz_var)
@@ -259,7 +275,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp',
 
         # In the UC Davis data some arrays have a 500m cell size
         if output_geo[0] == 500.0 and output_geo[4] == -500.0:
-            logging.info(f'  Rescaling input {gz_var} array')
+            print(f'  Rescaling input {gz_var} array')
             output_array = ndimage.zoom(output_array, 0.25, order=1)
             output_geo = (2000.0, 0.0, output_geo[2], 0.0, -2000.0, output_geo[5])
             output_shape = tuple(map(int, output_array.shape))
@@ -480,7 +496,7 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
     # logging.debug('\nBuilding Date List')
     tgt_dt_list = list(date_range(start_dt, end_dt, skip_leap_days=False))
     if not tgt_dt_list:
-        logging.info('Empty date range')
+        print('Empty date range')
         return []
     logging.debug('\nInitial test dates: {}'.format(
         ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), tgt_dt_list))
@@ -506,7 +522,7 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
         if overwrite_flag or dt.strftime('%Y-%m-%d') not in task_dates
     ]
     if not tgt_dt_list:
-        logging.info('No dates to process after checking ready/running tasks')
+        print('No dates to process after checking ready/running tasks')
         return []
     logging.debug('\nDates (after filtering tasks): {}'.format(
         ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), tgt_dt_list))
@@ -532,7 +548,7 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
         if overwrite_flag or dt.strftime('%Y-%m-%d') not in asset_dates
     ]
     if not tgt_dt_list:
-        logging.info('No dates to process after filtering existing assets')
+        print('No dates to process after filtering existing assets')
         return []
     logging.debug('\nDates (after filtering existing assets): {}'.format(
         ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), tgt_dt_list))
@@ -553,12 +569,12 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
                 logging.debug(f'{SOURCE_URL}/{test_date}')
                 date_response = requests.get(f'{SOURCE_URL}/{test_date}', timeout=10)
                 if date_response.status_code != 200:
-                    logging.info(f'  {test_date} - Folder does not exist, removing dates')
+                    print(f'  {test_date} - Folder does not exist, removing dates')
                     tgt_dt_list = [tgt_dt for tgt_dt in tgt_dt_list
                                    if tgt_dt.strftime(date_fmt) != test_date]
 
     if not tgt_dt_list:
-        logging.info('No dates to process after checking server folders')
+        print('No dates to process after checking server folders')
         return []
     logging.debug('\nIngest dates: {}'.format(
         ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), tgt_dt_list))
@@ -569,7 +585,7 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
 
 # def cron_scheduler(request):
 #     """Parse JSON/request arguments and queue ingest tasks for a date range"""
-#     logging.info('Queuing CIMIS daily asset ingest tasks')
+#     print('Queuing CIMIS daily asset ingest tasks')
 #     response = 'Queue CIMIS daily asset ingest tasks\n'
 #     args = {}
 #
@@ -620,7 +636,7 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
 #         abort(400, description=f'Start date cannot be before 2003-10-01')
 #     # if end_dt > today_dt:
 #     #     end_dt = today_dt
-#     #     logging.info(f'Adjusting end date to:   {end_dt.strftime("%Y-%m-%d")}\n')
+#     #     print(f'Adjusting end date to:   {end_dt.strftime("%Y-%m-%d")}\n')
 #     # if (end_dt - start_dt).days > 40:
 #     #     abort(400, description=f'Date range must be less than 30 days')
 #
@@ -640,14 +656,14 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
 #     #     abort(400, description=f'overwrite="{overwrite_flag}" could not be parsed')
 #
 #     # CGM - Should the scheduler be responsible for clearing the bucket?
-#     logging.info('Clearing all files from bucket folder')
+#     print('Clearing all files from bucket folder')
 #     bucket = STORAGE_CLIENT.bucket(BUCKET_NAME)
 #     blobs = bucket.list_blobs(prefix=BUCKET_FOLDER)
 #     for blob in blobs:
 #         blob.delete()
 #
 #     for tgt_dt in cimis_daily_asset_dates(**args):
-#         # logging.info(f'Date: {tgt_dt.strftime("%Y-%m-%d")}')
+#         # print(f'Date: {tgt_dt.strftime("%Y-%m-%d")}')
 #         # response += 'Date: {}\n'.format(tgt_dt.strftime('%Y-%m-%d'))
 #         response += cimis_daily_asset_ingest(
 #             tgt_dt, workspace='/tmp', variables=VARIABLES, overwrite_flag=False)
@@ -714,7 +730,7 @@ def cron_scheduler(request):
         abort(400, description=f'Start date cannot be before 2004-01-01')
     # if args['end_dt'] > datetime.datetime.today():
     #     args['end_dt'] = datetime.datetime.today()
-    #     logging.info(f'Adjusting end date to:   {end_dt.strftime("%Y-%m-%d")}\n')
+    #     print(f'Adjusting end date to:   {end_dt.strftime("%Y-%m-%d")}\n')
     # if (args['end_dt'] - args['start_dt']).days > 40:
     #     abort(400, description=f'Date range must be less than 30 days')
 
@@ -734,7 +750,7 @@ def cron_scheduler(request):
     #     abort(400, description=f'overwrite "{overwrite_flag}" could not be parsed')
 
     # CGM - Should the scheduler be responsible for clearing the bucket?
-    logging.info('Clearing all files from bucket folder')
+    print('Clearing all files from bucket folder')
     bucket = STORAGE_CLIENT.bucket(BUCKET_NAME)
     blobs = bucket.list_blobs(prefix=BUCKET_FOLDER)
     for blob in blobs:
@@ -796,14 +812,14 @@ def queue_ingest_tasks(tgt_dt_list):
     str : response string
 
     """
-    logging.info('Queuing CIMIS daily asset ingest tasks')
+    print('Queuing CIMIS daily asset ingest tasks')
     response = 'Queue CIMIS daily asset ingest tasks\n'
 
     TASK_CLIENT = tasks_v2.CloudTasksClient()
     parent = TASK_CLIENT.queue_path(PROJECT_NAME, TASK_LOCATION, TASK_QUEUE)
 
     for tgt_dt in tgt_dt_list:
-        logging.info(f'Date: {tgt_dt.strftime("%Y-%m-%d")}')
+        print(f'Date: {tgt_dt.strftime("%Y-%m-%d")}')
         # response += f'Date: {tgt_dt.strftime("%Y-%m-%d")}\n'
 
         # Using the default name in the request can create duplicate tasks
@@ -812,7 +828,7 @@ def queue_ingest_tasks(tgt_dt_list):
                f'{datetime.datetime.today().strftime("%Y%m%d%H%M%S")}'
         # name = f'{parent}/tasks/cimis_daily_asset_{tgt_dt.strftime("%Y%m%d")}'
         response += name + '\n'
-        logging.info(name)
+        print(name)
 
         # Using the json body wasn't working, switching back to URL
         # Couldn't get authentication with oidc_token to work
@@ -953,7 +969,7 @@ def get_ee_assets(asset_id, start_dt=None, end_dt=None):
             asset_id_list = [x['id'] for x in ee.data.listImages(params)['images']]
             break
         except ValueError:
-            logging.info('  Collection or folder does not exist')
+            print('  Collection or folder does not exist')
             raise sys.exit()
         except Exception as e:
             logging.error(f'  Error getting asset list, retrying ({i}/6)\n  {e}')
@@ -987,7 +1003,7 @@ def get_ee_tasks(states=['RUNNING', 'READY']):
             tasks = {t_desc: t_id for t_state, t_desc, t_id in task_list}
             break
         except Exception as e:
-            logging.info(f'  Error getting active task list, retrying ({i}/6)\n  {e}')
+            print(f'  Error getting active task list, retrying ({i}/6)\n  {e}')
             time.sleep(i ** 3)
 
     return tasks
@@ -1011,7 +1027,7 @@ def url_download(download_url, output_path, verify=True):
         try:
             response = requests.get(download_url, stream=True, verify=verify)
         except Exception as e:
-            logging.info(f'  Exception: {e}')
+            print(f'  Exception: {e}')
             return False
 
         logging.debug(f'  HTTP Status: {response.status_code}')
@@ -1021,8 +1037,8 @@ def url_download(download_url, output_path, verify=True):
             logging.debug('  Skipping')
             return False
         else:
-            logging.info(f'  HTTPError: {response.status_code}')
-            logging.info(f'  Retry attempt: {i}')
+            print(f'  HTTPError: {response.status_code}')
+            print(f'  Retry attempt: {i}')
             time.sleep(i ** 2)
             continue
 
@@ -1035,7 +1051,7 @@ def url_download(download_url, output_path, verify=True):
             logging.debug('  Download complete')
             return True
         except Exception as e:
-            logging.info(f'  Exception: {e}')
+            print(f'  Exception: {e}')
             return False
 
 
@@ -1063,14 +1079,14 @@ def url_download(download_url, output_path, verify=True):
 #                     'Too many concurrent aggregations' in str(e) or
 #                     'Computation timed out.' in str(e)):
 #                 # TODO: Maybe add 'Connection reset by peer'
-#                 logging.info(f'    Resending query ({i}/{max_retries})')
-#                 logging.info(f'    {e}')
+#                 print(f'    Resending query ({i}/{max_retries})')
+#                 print(f'    {e}')
 #             else:
 #                 # TODO: What should happen for unhandled EE exceptions?
-#                 logging.info('    Unhandled Earth Engine exception')
-#                 logging.info(f'    {e}')
+#                 print('    Unhandled Earth Engine exception')
+#                 print(f'    {e}')
 #         except Exception as e:
-#             logging.info(f'    Resending query ({i}/{max_retries})')
+#             print(f'    Resending query ({i}/{max_retries})')
 #             logging.debug(f'    {e}')
 #
 #         if output:

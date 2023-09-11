@@ -3,16 +3,17 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - earthengine-api=0.1.310
+  - earthengine-api=0.1.367
   - flask
+  - google-cloud-logging
   - google-cloud-storage
+  - google-cloud-tasks
   - numpy
   - pip
-  - python=3.7
+  - python=3.11
   - python-dateutil
   - rasterio
   - requests
   - scipy
   - pip:
-    - google-cloud-tasks
     - refet=0.3.10
