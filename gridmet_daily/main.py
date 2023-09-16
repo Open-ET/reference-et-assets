@@ -27,15 +27,15 @@ if 'FUNCTION_REGION' in os.environ:
     log_client = google.cloud.logging.Client(project=PROJECT_NAME)
     log_client.setup_logging(log_level=20)
     import logging
-    # DEADBEEF - Not sure if these lines are needed or not
-    # logging.basicConfig(level=logging.INFO)
-    # logger = logging.getLogger(__name__)
-    # logger.setLevel(logging.INFO)
+    # CGM - Not sure if these lines are needed or not
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
 else:
     import logging
-    # logging.basicConfig(level=logging.INFO, format='%(message)s')
-    # logging.getLogger('earthengine-api').setLevel(logging.INFO)
-    # logging.getLogger('googleapiclient').setLevel(logging.ERROR)
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    logging.getLogger('earthengine-api').setLevel(logging.INFO)
+    logging.getLogger('googleapiclient').setLevel(logging.ERROR)
     logging.getLogger('requests').setLevel(logging.INFO)
     logging.getLogger('urllib3').setLevel(logging.INFO)
 
@@ -63,8 +63,8 @@ def gridmet_et_reference_bias_correct(tgt_dt, overwrite_flag=False):
 
     """
     tgt_date = tgt_dt.strftime('%Y%m%d')
-    print(f'GRIDMET Daily Bias Corrected Reference ET - '
-          f'{tgt_dt.strftime("%Y-%m-%d")}')
+    logging.info(f'GRIDMET Daily Bias Corrected Reference ET - '
+                 f'{tgt_dt.strftime("%Y-%m-%d")}')
     # response = f'GRIDMET Daily Bias Corrected Reference ET - ' \
     #            f'{tgt_dt.strftime("%Y-%m-%d")}'
 
@@ -220,7 +220,7 @@ def cron_scheduler(request):
     }
 
     for tgt_dt in gridmet_dates(**args):
-        print(f'Date: {tgt_dt.strftime("%Y-%m-%d")}')
+        logging.info(f'Date: {tgt_dt.strftime("%Y-%m-%d")}')
         # response += 'Date: {}\n'.format(tgt_dt.strftime('%Y-%m-%d'))
         response += gridmet_et_reference_bias_correct(tgt_dt, overwrite_flag=True)
 
@@ -240,9 +240,9 @@ def gridmet_dates(start_dt, end_dt, overwrite_flag=False):
     # logging.debug('\nBuilding Date List')
     test_dt_list = list(date_range(start_dt, end_dt, skip_leap_days=False))
     if not test_dt_list:
-        print('Empty date range')
+        logging.info('Empty date range')
         return []
-    # print('\nTest dates: {}'.format(
+    # logging.info('\nTest dates: {}'.format(
     #     ', '.join(map(lambda x: x.strftime('%Y-%m-%d'), test_dt_list))))
 
     # Check if any of the needed dates are currently being ingested
@@ -263,10 +263,10 @@ def gridmet_dates(start_dt, end_dt, overwrite_flag=False):
         if overwrite_flag or dt.strftime('%Y-%m-%d') not in task_dates
     ]
     if not test_dt_list:
-        print('All dates are queued for export')
+        logging.info('All dates are queued for export')
         return []
     # else:
-    #     print('\nMissing asset dates: {}'.format(', '.join(
+    #     logging.info('\nMissing asset dates: {}'.format(', '.join(
     #         map(lambda x: x.strftime('%Y-%m-%d'), test_dt_list))))
 
 
@@ -482,17 +482,15 @@ def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=6):
     """
     logging.debug('\nRequesting Task List')
     task_list = None
-    for i in range(retries):
+    for i in range(1, retries):
         try:
             # TODO: getTaskList() is deprecated, switch to listOperations()
             task_list = ee.data.getTaskList()
             # task_list = ee.data.listOperations()
             break
         except Exception as e:
-            logging.warning(
-                f'  Error getting task list, retrying ({i}/{retries})\n  {e}'
-            )
-            time.sleep((i+1) ** 3)
+            logging.warning(f'  Error getting task list, retrying ({i}/{retries})\n  {e}')
+            time.sleep(i ** 3)
     if task_list is None:
         raise Exception('\nUnable to retrieve task list, exiting')
 
@@ -522,14 +520,14 @@ def get_info(ee_obj, max_retries=4):
                     'Too many concurrent aggregations' in str(e) or
                     'Computation timed out.' in str(e)):
                 # TODO: Maybe add 'Connection reset by peer'
-                print(f'    Resending query ({i}/{max_retries})')
-                print(f'    {e}')
+                logging.info(f'    Resending query ({i}/{max_retries})')
+                logging.info(f'    {e}')
             else:
                 # TODO: What should happen for unhandled EE exceptions?
-                print('    Unhandled Earth Engine exception')
-                print(f'    {e}')
+                logging.info('    Unhandled Earth Engine exception')
+                logging.info(f'    {e}')
         except Exception as e:
-            print(f'    Resending query ({i}/{max_retries})')
+            logging.info(f'    Resending query ({i}/{max_retries})')
             logging.debug(f'    {e}')
 
         if output:
