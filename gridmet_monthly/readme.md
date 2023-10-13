@@ -33,5 +33,5 @@ gcloud functions call gridmet-reference-et-monthly-v1 --project openet
 ### Scheduling the job
 
 ```
-gcloud scheduler jobs create http gridmet-reference-et-monthly-v1 --schedule "4 6 5,15,25 * *" --uri "https://us-central1-openet.cloudfunctions.net/gridmet-reference-et-monthly-v1" --description "Update Monthly Bias Corrected GRIDMET Reference ET" --http-method POST --time-zone "UTC" --project openet --location us-central1 --max-retry-attempts 3 --attempt-deadline 300s --min-backoff=20s
+gcloud scheduler jobs create http gridmet-reference-et-monthly-v1 --schedule "5 6 5,15,25 * *" --uri "https://us-central1-openet.cloudfunctions.net/gridmet-reference-et-monthly-v1" --description "Update Monthly Bias Corrected GRIDMET Reference ET" --http-method POST --time-zone "UTC" --project openet --location us-central1 --max-retry-attempts 3 --attempt-deadline 300s --min-backoff=20s
 ```

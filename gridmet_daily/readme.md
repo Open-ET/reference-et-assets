@@ -28,5 +28,5 @@ gcloud functions call gridmet-reference-et-daily-v1 --project openet
 ### Scheduling the job
 
 ```
-gcloud scheduler jobs update http gridmet-reference-et-daily-v1 --schedule "2 12 * * *" --uri "https://us-central1-openet.cloudfunctions.net/gridmet-reference-et-daily-v1" --description "Update Daily Bias Corrected GRIDMET Reference ET" --http-method POST --time-zone "UTC" --project openet --location us-central1 --max-retry-attempts 3 --attempt-deadline 300s --min-backoff=20s
+gcloud scheduler jobs update http gridmet-reference-et-daily-v1 --schedule "5 12 * * *" --uri "https://us-central1-openet.cloudfunctions.net/gridmet-reference-et-daily-v1" --description "Update Daily Bias Corrected GRIDMET Reference ET" --http-method POST --time-zone "UTC" --project openet --location us-central1 --max-retry-attempts 3 --attempt-deadline 300s --min-backoff=20s
 ```
