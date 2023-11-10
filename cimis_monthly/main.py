@@ -1,6 +1,6 @@
 import argparse
 from calendar import monthrange
-import datetime
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 import re
@@ -22,6 +22,8 @@ SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
 ASSET_DT_FMT = '%Y%m'
 START_MONTH_OFFSET = 1
 END_MONTH_OFFSET = 0
+TODAY_DT = datetime.today()
+# TODAY_DT = datetime.now(timezone=timezone.utc)
 INPUT_BANDS = ['eto', 'etr']
 OUTPUT_BANDS = ['eto', 'etr']
 # CGM - The "eto" and "eto_asce" bands in CIMIS can be slightly different
@@ -131,7 +133,7 @@ def cimis_monthly_ingest(tgt_dt, overwrite_flag=False):
         return f'{export_name} - too few source images ({source_count}) for month\n'
 
     properties = {
-        'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
+        'date_ingested': TODAY_DT.strftime('%Y-%m-%d'),
         # 'scale_factor': 1.0,
         # TODO: Check if these property names should be changed to match the band names
         'scale_factor_et_reference': 1.0,
@@ -208,24 +210,23 @@ def cron_scheduler(request):
         end_date = None
 
     if not start_date and not end_date:
-        today = datetime.datetime.today()
-        start_dt = (datetime.datetime(today.year, today.month, 1) -
+        start_dt = (datetime(TODAY_DT.year, TODAY_DT.month, 1) -
                     relativedelta(months=START_MONTH_OFFSET))
-        end_dt = (datetime.datetime(today.year, today.month, 1) -
+        end_dt = (datetime(TODAY_DT.year, TODAY_DT.month, 1) -
                   relativedelta(days=1) - relativedelta(days=END_MONTH_OFFSET))
     elif start_date and end_date:
         # Only process custom range if start and end are both set
         # Limit the end date to the last full month date
         try:
-            start_dt = datetime.datetime.strptime(start_date, '%Y-%m-%d')
-            end_dt = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
         except ValueError as e:
             response = 'Error parsing start and/or end date\n'
             response += str(e)
             abort(404, description=response)
 
         # Force end date to be last day of previous month
-        end_dt = min(end_dt, datetime.datetime.today() - datetime.timedelta(days=1))
+        end_dt = min(end_dt, TODAY_DT - timedelta(days=1))
 
         # TODO: Force start date to be at least one month before end
         # start_dt = min(
@@ -234,12 +235,12 @@ def cron_scheduler(request):
 
         if start_dt > end_dt:
             abort(404, description='Start date must be before end date')
-        # elif (end_dt - start_dt) > datetime.timedelta(days=400):
+        # elif (end_dt - start_dt) > timedelta(days=400):
         #     abort(404, description='No more than 1 year can be processed in a single request')
-        # if start_dt < datetime.datetime(1980, 1, 1):
+        # if start_dt < datetime(1980, 1, 1):
         #     logging.debug('Start Date: {} - no CIMIS images before '
         #                   '1980-01-01'.format(start_dt.strftime('%Y-%m-%d')))
-        #     start_dt = datetime.datetime(1980, 1, 1)
+        #     start_dt = datetime(1980, 1, 1)
     else:
         abort(404, description='Both start and end date must be specified')
     response += 'Start Date: {}\n'.format(start_dt.strftime('%Y-%m-%d'))
@@ -288,7 +289,7 @@ def cimis_monthly_dates(start_dt, end_dt, overwrite_flag=False):
         for desc in get_ee_tasks(states=['RUNNING', 'READY']).keys()
     ]
     task_dates = {
-        datetime.datetime.strptime(m.group('date'), '%Y%m%d').strftime('%Y-%m-%d')
+        datetime.strptime(m.group('date'), '%Y%m%d').strftime('%Y-%m-%d')
         for task_id in task_id_list for m in [task_id_re.search(task_id)] if m
     }
     # logging.debug(f'\nTask dates: {", ".join(sorted(task_dates))}')
@@ -310,15 +311,15 @@ def cimis_monthly_dates(start_dt, end_dt, overwrite_flag=False):
     # For now, assume the collection exists
     # Bump end date for filterDate() calls
     logging.debug('\nChecking existing assets')
-    filter_end_dt = end_dt + datetime.timedelta(days=1)
+    filter_end_dt = end_dt + timedelta(days=1)
     asset_date_coll = ee.ImageCollection(ASSET_COLL_ID) \
             .filterDate(start_dt.strftime('%Y-%m-%d'),
                         filter_end_dt.strftime('%Y-%m-%d'))
     asset_dates = set(get_info(asset_date_coll.aggregate_array('system:index')))
     # asset_id_list = get_ee_assets(
-    #     ASSET_COLL_ID, start_dt, end_dt + datetime.timedelta(days=1))
+    #     ASSET_COLL_ID, start_dt, end_dt + timedelta(days=1))
     # asset_date_list = [
-    #     datetime.datetime.strptime(m.group('date'), ASSET_DT_FMT)
+    #     datetime.strptime(m.group('date'), ASSET_DT_FMT)
     #         .strftime('%Y-%m-%d')
     #     for asset_id in asset_id_list
     #     for m in [asset_id_re.search(asset_id)] if m
@@ -359,7 +360,7 @@ def month_range(start_dt, end_dt):
 
     """
     import copy
-    curr_dt = copy.copy(datetime.datetime(start_dt.year, start_dt.month, 1))
+    curr_dt = copy.copy(datetime(start_dt.year, start_dt.month, 1))
     while curr_dt <= end_dt:
         yield curr_dt
         curr_dt += relativedelta(months=1)
@@ -465,7 +466,7 @@ def arg_valid_date(input_date):
 
     """
     try:
-        return datetime.datetime.strptime(input_date, "%Y-%m-%d")
+        return datetime.strptime(input_date, "%Y-%m-%d")
     except ValueError:
         raise argparse.ArgumentTypeError(f'Not a valid date: "{input_date}"')
 
@@ -484,19 +485,17 @@ def arg_valid_file(file_path):
 
 def arg_parse():
     """"""
-    today = datetime.date.today()
-
     parser = argparse.ArgumentParser(
         description='Generate monthly CIMIS reference ET assets',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--start', type=arg_valid_date, metavar='DATE',
-        default=(datetime.datetime(today.year, today.month, 1) -
+        default=(datetime(TODAY_DT.year, TODAY_DT.month, 1) -
                  relativedelta(months=START_MONTH_OFFSET)).strftime('%Y-%m-%d'),
         help='Start date (format YYYY-MM-DD)')
     parser.add_argument(
         '--end', type=arg_valid_date, metavar='DATE',
-        default=(datetime.datetime(today.year, today.month, 1) -
+        default=(datetime(TODAY_DT.year, TODAY_DT.month, 1) -
                  relativedelta(days=1) -
                  relativedelta(months=END_MONTH_OFFSET)).strftime('%Y-%m-%d'),
         help='End date (format YYYY-MM-DD)')

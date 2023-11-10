@@ -1,5 +1,5 @@
 import argparse
-import datetime
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 import re
@@ -18,6 +18,8 @@ ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
 SOURCE_COLL_ID = 'IDAHO_EPSCOR/GRIDMET'
 START_DAY_OFFSET = 90
 END_DAY_OFFSET = 1
+TODAY_DT = datetime.today()
+# TODAY_DT = datetime.now(timezone=timezone.utc)
 
 if 'FUNCTION_REGION' in os.environ:
     # Logging is not working correctly in cloud functions for Python 3.8+
@@ -33,7 +35,7 @@ if 'FUNCTION_REGION' in os.environ:
     logger.setLevel(logging.INFO)
 else:
     import logging
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    # logging.basicConfig(level=logging.INFO, format='%(message)s')
     logging.getLogger('earthengine-api').setLevel(logging.INFO)
     logging.getLogger('googleapiclient').setLevel(logging.ERROR)
     logging.getLogger('requests').setLevel(logging.INFO)
@@ -114,7 +116,7 @@ def gridmet_et_reference_bias_correct(tgt_dt, overwrite_flag=False):
         'status': source_img.get('status'),
         'eto_source_data_version': bias_eto_img.get('source_data_version'),
         'etr_source_data_version': bias_etr_img.get('source_data_version'),
-        'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
+        'date_ingested': TODAY_DT.strftime('%Y-%m-%d'),
     }
 
     output_img = ee.Image([
@@ -184,16 +186,16 @@ def cron_scheduler(request):
     if not start_date and not end_date:
         # Process the last 90 days by default
         # response += f'Processing last {default_days} days\n'
-        start_dt = datetime.datetime.today() - datetime.timedelta(days=START_DAY_OFFSET)
-        end_dt = datetime.datetime.today() - datetime.timedelta(days=END_DAY_OFFSET)
+        start_dt = TODAY_DT - timedelta(days=START_DAY_OFFSET)
+        end_dt = TODAY_DT - timedelta(days=END_DAY_OFFSET)
     elif start_date and end_date:
         # Only process custom range if start and end are both set
         # Limit the end date to the current date
         try:
-            start_dt = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d')
             end_dt = min(
-                datetime.datetime.strptime(end_date, '%Y-%m-%d'),
-                datetime.datetime.today() - datetime.timedelta(days=1)
+                datetime.strptime(end_date, '%Y-%m-%d'),
+                TODAY_DT - timedelta(days=1)
             )
         except ValueError as e:
             response = 'Error parsing start and/or end date\n'
@@ -202,12 +204,12 @@ def cron_scheduler(request):
 
         if start_dt > end_dt:
             abort(404, description='Start date must be before end date')
-        elif (end_dt - start_dt) > datetime.timedelta(days=400):
+        elif (end_dt - start_dt) > timedelta(days=400):
             abort(404, description='No more than 1 year can be processed in a single request')
-        # if start_dt < datetime.datetime(1980, 1, 1):
+        # if start_dt < datetime(1980, 1, 1):
         #     logging.debug('Start Date: {} - no GRIDMET images before '
         #                   '1980-01-01'.format(start_dt.strftime('%Y-%m-%d')))
-        #     start_dt = datetime.datetime(1980, 1, 1)
+        #     start_dt = datetime(1980, 1, 1)
     else:
         abort(404, description='Both start and end date must be specified')
 
@@ -250,9 +252,10 @@ def gridmet_dates(start_dt, end_dt, overwrite_flag=False):
     #   from running to done before the asset list is retrieved.
     task_id_list = [
         desc.replace('\nAsset ingestion: ', '')
-        for desc in get_ee_tasks(states=['RUNNING', 'READY']).keys()]
+        for desc in get_ee_tasks(states=['RUNNING', 'READY']).keys()
+    ]
     task_dates = {
-        datetime.datetime.strptime(m.group('date'), '%Y%m%d').strftime('%Y-%m-%d')
+        datetime.strptime(m.group('date'), '%Y%m%d').strftime('%Y-%m-%d')
         for task_id in task_id_list for m in [task_id_re.search(task_id)] if m
     }
     # logging.debug(f'\nTask dates: {", ".join(sorted(task_dates))}')
@@ -271,7 +274,7 @@ def gridmet_dates(start_dt, end_dt, overwrite_flag=False):
 
 
     # Bump end date for filterDate() calls
-    filter_end_dt = end_dt + datetime.timedelta(days=1)
+    filter_end_dt = end_dt + timedelta(days=1)
 
 
     # Build date lists for each status type
@@ -279,9 +282,10 @@ def gridmet_dates(start_dt, end_dt, overwrite_flag=False):
     # CGM - Switched to building each date list with a separate
     #   aggregate_array().getInf() call to process longer time periods
     try:
-        src_date_coll = ee.ImageCollection(SOURCE_COLL_ID) \
-            .filterDate(start_dt.strftime('%Y-%m-%d'),
-                        filter_end_dt.strftime('%Y-%m-%d'))
+        src_date_coll = (
+            ee.ImageCollection(SOURCE_COLL_ID)
+            .filterDate(start_dt.strftime('%Y-%m-%d'), filter_end_dt.strftime('%Y-%m-%d'))
+        )
         src_perm_dates = get_info(
             src_date_coll.filterMetadata('status', 'equals', 'permanent')
             .aggregate_array('system:index')
@@ -305,9 +309,10 @@ def gridmet_dates(start_dt, end_dt, overwrite_flag=False):
     # logging.debug(src_early_dates)
 
     try:
-        tgt_date_coll = ee.ImageCollection(ASSET_COLL_ID) \
-            .filterDate(start_dt.strftime('%Y-%m-%d'),
-                        filter_end_dt.strftime('%Y-%m-%d'))
+        tgt_date_coll = (
+            ee.ImageCollection(ASSET_COLL_ID)
+            .filterDate(start_dt.strftime('%Y-%m-%d'), filter_end_dt.strftime('%Y-%m-%d'))
+        )
         tgt_perm_dates = get_info(
             tgt_date_coll.filterMetadata('status', 'equals', 'permanent')
             .aggregate_array('system:index')
@@ -459,7 +464,7 @@ def date_range(start_dt, end_dt, days=1, skip_leap_days=False):
     while curr_dt <= end_dt:
         if not skip_leap_days or curr_dt.month != 2 or curr_dt.day != 29:
             yield curr_dt
-        curr_dt += datetime.timedelta(days=days)
+        curr_dt += timedelta(days=days)
 
 
 def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=6):
@@ -561,7 +566,7 @@ def arg_valid_date(input_date):
 
     """
     try:
-        return datetime.datetime.strptime(input_date, "%Y-%m-%d")
+        return datetime.strptime(input_date, "%Y-%m-%d")
     except ValueError:
         raise argparse.ArgumentTypeError(f'Not a valid date: "{input_date}"')
 
@@ -585,13 +590,11 @@ def arg_parse():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--start', type=arg_valid_date, metavar='YYYY-MM-DD',
-        default=(datetime.datetime.today() -
-                 datetime.timedelta(days=START_DAY_OFFSET)).strftime('%Y-%m-%d'),
+        default=(TODAY_DT - timedelta(days=START_DAY_OFFSET)).strftime('%Y-%m-%d'),
         help='Start date')
     parser.add_argument(
         '--end', type=arg_valid_date, metavar='YYYY-MM-DD',
-        default=(datetime.datetime.today() -
-                 datetime.timedelta(days=END_DAY_OFFSET)).strftime('%Y-%m-%d'),
+        default=(TODAY_DT - timedelta(days=END_DAY_OFFSET)).strftime('%Y-%m-%d'),
         help='End date (inclusive)')
     # parser.add_argument(
     #     '-v', '--variables', nargs='+', default=VARIABLES,
@@ -637,13 +640,11 @@ if __name__ == '__main__':
     #     input('Press ENTER to continue')
     #     ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, ASSET_COLL_ID)
 
-    ingest_dt_list = gridmet_dates(
-        args.start, args.end, overwrite_flag=args.overwrite
-    )
+    ingest_dt_list = gridmet_dates(args.start, args.end, overwrite_flag=args.overwrite)
 
     for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
         # logging.info(f'Date: {ingest_dt.strftime("%Y-%m-%d")}')
         response = gridmet_et_reference_bias_correct(
-            ingest_dt,  overwrite_flag=args.overwrite
+            ingest_dt, overwrite_flag=args.overwrite
         )
         logging.info(f'  {response}')

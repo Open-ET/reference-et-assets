@@ -1,9 +1,9 @@
 import argparse
-import datetime
+from datetime import datetime, timedelta, timezone
 import gzip
 import logging
 import os
-# import pprint
+import pprint
 import re
 import shutil
 import sys
@@ -38,13 +38,14 @@ SOURCE_URL = 'https://spatialcimis.water.ca.gov/cimis'
 STORAGE_CLIENT = storage.Client(project=PROJECT_NAME)
 TASK_LOCATION = 'us-central1'
 TASK_QUEUE = 'ee-single-worker'
+START_DAY_OFFSET = 365
+END_DAY_OFFSET = 0
+TODAY_DT = datetime.today()
+# TODAY_DT = datetime.now(timezone=timezone.utc)
 VARIABLES = ['eto', 'etr']
 # VARIABLES = ['eto']
 # VARIABLES = ['eto', 'eto_asce', 'etr_asce']
-# VARIABLES = ['Tdew', 'Tx', 'Tn', 'Rnl', 'Rs', 'K', 'U2',
-#              'eto', 'eto_asce', 'etr_asce']
-START_DAY_OFFSET = 365
-END_DAY_OFFSET = 0
+# VARIABLES = ['Tdew', 'Tx', 'Tn', 'Rnl', 'Rs', 'K', 'U2', 'eto', 'eto_asce', 'etr_asce']
 
 if 'FUNCTION_REGION' in os.environ:
     # Logging is not working correctly in cloud functions for Python 3.8+
@@ -54,7 +55,6 @@ if 'FUNCTION_REGION' in os.environ:
     log_client = google.cloud.logging.Client(project=PROJECT_NAME)
     log_client.setup_logging(log_level=20)
     import logging
-    # CGM - Not sure if these lines are needed or not
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
@@ -159,11 +159,11 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
 
     # DEADBEEF
     # # There is only partial CIMIS data before 2003-10-01
-    # if start_dt < datetime.datetime(2003, 10, 1):
-    #     start_dt = datetime.datetime(2003, 10, 1)
+    # if start_dt < datetime(2003, 10, 1):
+    #     start_dt = datetime(2003, 10, 1)
     #     logging.info(f'Adjusting start date to: {start_dt.strftime("%Y-%m-%d")}')
-    # if end_dt > today_dt:
-    #     end_dt = today_dt
+    # if end_dt > TODAY_DT:
+    #     end_dt = TODAY_DT
     #     logging.info(f'Adjusting end date to:   {end_dt.strftime("%Y-%m-%d")}\n')
 
     # Check that user defined variables are valid and in CIMIS
@@ -436,7 +436,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
     logging.debug(f'  {task_id}')
 
     properties = {
-        'date_ingested': f'{datetime.datetime.today().strftime("%Y-%m-%d")}',
+        'date_ingested': f'{TODAY_DT.strftime("%Y-%m-%d")}',
         'source': SOURCE_URL.replace('https://', '').replace('http://', ''),
     }
     # if 'eto_asce' in variables or 'etr_asce' in variables:
@@ -512,7 +512,7 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
         for desc in get_ee_tasks(states=['RUNNING', 'READY']).keys()
     ]
     task_dates = {
-        datetime.datetime.strptime(m.group('date'), ASSET_DT_FMT).strftime('%Y-%m-%d')
+        datetime.strptime(m.group('date'), ASSET_DT_FMT).strftime('%Y-%m-%d')
         for task_id in task_id_list for m in [task_id_re.search(task_id)] if m
     }
     # logging.debug(f'\nTask dates: {", ".join(sorted(task_dates))}')
@@ -535,10 +535,10 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
     # For now, assume the collection exists
     logging.debug('\nChecking existing assets')
     asset_id_list = get_ee_assets(
-        ASSET_COLL_ID, start_dt, end_dt + datetime.timedelta(days=1)
+        ASSET_COLL_ID, start_dt, end_dt + timedelta(days=1)
     )
     asset_dates = {
-        datetime.datetime.strptime(m.group('date'), ASSET_DT_FMT).strftime('%Y-%m-%d')
+        datetime.strptime(m.group('date'), ASSET_DT_FMT).strftime('%Y-%m-%d')
         for asset_id in asset_id_list for m in [asset_id_re.search(asset_id)] if m
     }
     logging.debug(f'\nAsset dates: {", ".join(sorted(asset_dates))}')
@@ -610,33 +610,30 @@ def cimis_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
 #         # abort(400, description='end parameter not set')
 #
 #     if start_date is None and end_date is None:
-#         today_dt = datetime.datetime.today()
-#         start_date = (today_dt - relativedelta(days=START_DAY_OFFSET))\
-#             .strftime('%Y-%m-%d')
-#         end_date = (today_dt - relativedelta(days=END_DAY_OFFSET))\
-#             .strftime('%Y-%m-%d')
+#         start_date = (TODAY_DT - relativedelta(days=START_DAY_OFFSET)).strftime('%Y-%m-%d')
+#         end_date = (TODAY_DT - relativedelta(days=END_DAY_OFFSET)).strftime('%Y-%m-%d')
 #     elif start_date is None or end_date is None:
 #         abort(400, description='Both start and end date must be specified')
 #
 #     try:
-#         args['start_dt'] = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+#         args['start_dt'] = datetime.strptime(start_date, '%Y-%m-%d')
 #     except:
 #         abort(400, description=f'Start date {start_date} could not be parsed')
 #     try:
-#         args['end_dt'] = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+#         args['end_dt'] = datetime.strptime(end_date, '%Y-%m-%d')
 #         # args['end_dt'] = min(
-#         #     datetime.datetime.strptime(end_date, '%Y-%m-%d'),
-#         #     datetime.datetime.today()
+#         #     datetime.strptime(end_date, '%Y-%m-%d'),
+#         #     TODAY_DT
 #         # )
 #     except:
 #         abort(400, description=f'End date {end_date} could not be parsed')
 #
 #     if args['end_dt'] < args['start_dt']:
 #         abort(400, description='End date must be after start date')
-#     if args['start_dt'] < datetime.datetime(2003, 10, 1):
+#     if args['start_dt'] < datetime(2003, 10, 1):
 #         abort(400, description=f'Start date cannot be before 2003-10-01')
-#     # if end_dt > today_dt:
-#     #     end_dt = today_dt
+#     # if end_dt > TODAY_DT:
+#     #     end_dt = TODAY_DT
 #     #     logging.info(f'Adjusting end date to:   {end_dt.strftime("%Y-%m-%d")}\n')
 #     # if (end_dt - start_dt).days > 40:
 #     #     abort(400, description=f'Date range must be less than 30 days')
@@ -706,31 +703,28 @@ def cron_scheduler(request):
         end_date = None
 
     if start_date is None and end_date is None:
-        today_dt = datetime.datetime.today()
-        start_date = (today_dt - datetime.timedelta(days=days))\
-            .strftime('%Y-%m-%d')
-        end_date = (today_dt - datetime.timedelta(days=END_DAY_OFFSET))\
-            .strftime('%Y-%m-%d')
+        start_date = (TODAY_DT - timedelta(days=days)).strftime('%Y-%m-%d')
+        end_date = (TODAY_DT - timedelta(days=END_DAY_OFFSET)).strftime('%Y-%m-%d')
     elif start_date is None or end_date is None:
         abort(400, description='Both start and end date must be specified')
 
     try:
-        args['start_dt'] = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+        args['start_dt'] = datetime.strptime(start_date, '%Y-%m-%d')
     except:
         abort(400, description=f'Start date {start_date} could not be parsed')
     try:
-        args['end_dt'] = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+        args['end_dt'] = datetime.strptime(end_date, '%Y-%m-%d')
     except:
         abort(400, description=f'End date {end_date} could not be parsed')
 
     if args['end_dt'] < args['start_dt']:
         abort(400, description='End date must be after start date')
-    if args['start_dt'] < datetime.datetime(2003, 10, 1):
+    if args['start_dt'] < datetime(2003, 10, 1):
         abort(400, description=f'Start date cannot be before 2003-10-01')
-    if args['start_dt'] < datetime.datetime(2004, 1, 1):
+    if args['start_dt'] < datetime(2004, 1, 1):
         abort(400, description=f'Start date cannot be before 2004-01-01')
-    # if args['end_dt'] > datetime.datetime.today():
-    #     args['end_dt'] = datetime.datetime.today()
+    # if args['end_dt'] > TODAY_DT:
+    #     args['end_dt'] = TODAY_DT
     #     logging.info(f'Adjusting end date to:   {end_dt.strftime("%Y-%m-%d")}\n')
     # if (args['end_dt'] - args['start_dt']).days > 40:
     #     abort(400, description=f'Date range must be less than 30 days')
@@ -779,7 +773,7 @@ def cron_worker(request):
         abort(400, description='date parameter not set')
 
     try:
-        args['tgt_dt'] = datetime.datetime.strptime(tgt_date, '%Y-%m-%d')
+        args['tgt_dt'] = datetime.strptime(tgt_date, '%Y-%m-%d')
     except:
         abort(400, description=f'date "{tgt_date}" could not be parsed')
 
@@ -826,7 +820,7 @@ def queue_ingest_tasks(tgt_dt_list):
         # Using the default name in the request can create duplicate tasks
         # Trying out adding the timestamp to avoid this for testing/debug
         name = f'{parent}/tasks/cimis_daily_v1_asset_{tgt_dt.strftime("%Y%m%d")}_' \
-               f'{datetime.datetime.today().strftime("%Y%m%d%H%M%S")}'
+               f'{TODAY_DT.strftime("%Y%m%d%H%M%S")}'
         # name = f'{parent}/tasks/cimis_daily_asset_{tgt_dt.strftime("%Y%m%d")}'
         response += name + '\n'
         logging.info(name)
@@ -938,7 +932,7 @@ def date_range(start_dt, end_dt, days=1, skip_leap_days=False):
     while curr_dt <= end_dt:
         if not skip_leap_days or curr_dt.month != 2 or curr_dt.day != 29:
             yield curr_dt
-        curr_dt += datetime.timedelta(days=days)
+        curr_dt += timedelta(days=days)
 
 
 def get_ee_assets(asset_id, start_dt=None, end_dt=None, retries=4):
@@ -1146,7 +1140,7 @@ def arg_valid_date(input_date):
 
     """
     try:
-        return datetime.datetime.strptime(input_date, '%Y-%m-%d')
+        return datetime.strptime(input_date, '%Y-%m-%d')
     except ValueError:
         raise argparse.ArgumentTypeError(f'Not a valid date: "{input_date}"')
 
@@ -1165,8 +1159,6 @@ def arg_valid_file(file_path):
 
 def arg_parse():
     """"""
-    today = datetime.date.today()
-
     parser = argparse.ArgumentParser(
         description='Ingest CIMIS daily assets into Earth Engine',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -1176,13 +1168,11 @@ def arg_parse():
         help='Set the current working directory')
     parser.add_argument(
         '--start', type=arg_valid_date, metavar='DATE',
-        default=(datetime.datetime.today() -
-                 datetime.timedelta(days=START_DAY_OFFSET)).strftime('%Y-%m-%d'),
+        default=(TODAY_DT - timedelta(days=START_DAY_OFFSET)).strftime('%Y-%m-%d'),
         help='Start date (format YYYY-MM-DD)')
     parser.add_argument(
         '--end', type=arg_valid_date, metavar='DATE',
-        default=(datetime.datetime.today() -
-                 datetime.timedelta(days=END_DAY_OFFSET)).strftime('%Y-%m-%d'),
+        default=(TODAY_DT - timedelta(days=END_DAY_OFFSET)).strftime('%Y-%m-%d'),
         help='End date (format YYYY-MM-DD)')
     parser.add_argument(
         '-v', '--variables', nargs='+', default=VARIABLES,
@@ -1232,17 +1222,28 @@ if __name__ == '__main__':
     #     input('Press ENTER to continue')
     #     ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, ASSET_COLL_ID)
 
-    ingest_dt_list = cimis_daily_asset_dates(
-        args.start, args.end, overwrite_flag=args.overwrite
-    )
-    # logging.info(ingest_dt_list)
-    # input('ENTER')
 
-    for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
-        response = cimis_daily_asset_ingest(
-            ingest_dt, variables=args.variables, workspace=args.workspace,
-            overwrite_flag=args.overwrite
-        )
-        logging.info(f'  {response}')
+    # ingest_dt_list = cimis_daily_asset_dates(
+    #     args.start, args.end, overwrite_flag=args.overwrite
+    # )
+    # # logging.info(ingest_dt_list)
+    # # input('ENTER')
+    #
+    # for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
+    #     response = cimis_daily_asset_ingest(
+    #         ingest_dt, variables=args.variables, workspace=args.workspace,
+    #         overwrite_flag=args.overwrite
+    #     )
+    #     logging.info(f'  {response}')
 
-    # queue_ingest_tasks(ingest_dt_list)
+
+    from unittest.mock import Mock
+    data = {
+        'days': '60',
+        # 'start': args.start.strftime("%Y-%m-%d"),
+        # 'end': args.end.strftime("%Y-%m-%d"),
+        # 'overwrite': args.overwrite_flag,
+    }
+    req = Mock(get_json=Mock(return_value=data), args=data)
+    response = cron_scheduler(req)
+    print(response)
