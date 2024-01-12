@@ -23,6 +23,10 @@ gcloud functions deploy cimis-reference-et-monthly --project openet --runtime py
 gcloud functions call cimis-reference-et-monthly-v1 --project openet
 ```
 
+```
+gcloud functions call cimis-reference-et-monthly-v1 --project openet --data '{"start":"2023-09-01", "end":"2023-09-30"}'
+```
+
 ### Scheduling the job
 
 ```

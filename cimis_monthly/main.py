@@ -11,14 +11,10 @@ import ee
 from flask import abort, Response
 
 PROJECT_NAME = 'openet'
-# ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-#                  'projects/openet/reference_et/california/cimis/monthly/v1'
-# SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
-#                  'projects/openet/reference_et/california/cimis/daily/v1'
 ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                 'projects/openet/reference_et/cimis/monthly'
+                'projects/openet/reference_et/california/cimis/monthly/v1'
 SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                 'projects/openet/reference_et/cimis/daily'
+                 'projects/openet/reference_et/california/cimis/daily/v1'
 ASSET_DT_FMT = '%Y%m'
 START_MONTH_OFFSET = 1
 END_MONTH_OFFSET = 0
@@ -26,13 +22,6 @@ TODAY_DT = datetime.today()
 # TODAY_DT = datetime.now(timezone=timezone.utc)
 INPUT_BANDS = ['eto', 'etr']
 OUTPUT_BANDS = ['eto', 'etr']
-# CGM - The "eto" and "eto_asce" bands in CIMIS can be slightly different
-# The models are currently using the "eto_asce" band, not "eto",
-#   so we may want to build the monthly collection using that band also
-# INPUT_BANDS = ['eto', 'eto_asce', 'etr_asce']
-# OUTPUT_BANDS = ['eto', 'eto_asce', 'etr_asce']
-# INPUT_BANDS = ['eto_asce', 'etr_asce']
-# OUTPUT_BANDS = ['eto', 'etr']
 
 if 'FUNCTION_REGION' in os.environ:
     # Logging is not working correctly in cloud functions for Python 3.8+
@@ -48,7 +37,7 @@ if 'FUNCTION_REGION' in os.environ:
     logger.setLevel(logging.INFO)
 else:
     import logging
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    # logging.basicConfig(level=logging.INFO, format='%(message)s')
     logging.getLogger('earthengine-api').setLevel(logging.INFO)
     logging.getLogger('googleapiclient').setLevel(logging.ERROR)
     logging.getLogger('requests').setLevel(logging.INFO)
@@ -549,7 +538,5 @@ if __name__ == '__main__':
 
     for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
         # logging.info(f'Date: {ingest_dt.strftime("%Y-%m-%d")}')
-        response = cimis_monthly_ingest(
-            ingest_dt,  overwrite_flag=args.overwrite
-        )
+        response = cimis_monthly_ingest(ingest_dt,  overwrite_flag=args.overwrite)
         logging.info(f'  {response}')

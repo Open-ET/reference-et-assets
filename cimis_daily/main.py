@@ -20,16 +20,13 @@ import refet
 import requests
 from scipy import ndimage
 
-# ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-#                 'projects/openet/reference_et/california/cimis/daily/v1'
 ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                'projects/openet/reference_et/cimis/daily'
+                'projects/openet/reference_et/california/cimis/daily/v1'
 ASSET_DT_FMT = '%Y%m%d'
 BUCKET_NAME = 'openet'
 BUCKET_FOLDER = 'cimis/daily'
 FUNCTION_URL = 'https://us-central1-openet.cloudfunctions.net'
-# FUNCTION_NAME = 'cimis-reference-et-daily-v1-worker'
-FUNCTION_NAME = 'cimis-reference-et-daily-worker'
+FUNCTION_NAME = 'cimis-reference-et-daily-v1-worker'
 PROJECT_NAME = 'openet'
 SOURCE_URL = 'https://spatialcimis.water.ca.gov/cimis'
 # This server stopped updating in 2019 but is useful for filling in missing dates
@@ -43,9 +40,6 @@ END_DAY_OFFSET = 0
 TODAY_DT = datetime.today()
 # TODAY_DT = datetime.now(timezone=timezone.utc)
 VARIABLES = ['eto', 'etr']
-# VARIABLES = ['eto']
-# VARIABLES = ['eto', 'eto_asce', 'etr_asce']
-# VARIABLES = ['Tdew', 'Tx', 'Tn', 'Rnl', 'Rs', 'K', 'U2', 'eto', 'eto_asce', 'etr_asce']
 
 if 'FUNCTION_REGION' in os.environ:
     # Logging is not working correctly in cloud functions for Python 3.8+
@@ -60,7 +54,7 @@ if 'FUNCTION_REGION' in os.environ:
     logger.setLevel(logging.INFO)
 else:
     import logging
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    # logging.basicConfig(level=logging.INFO, format='%(message)s')
     logging.getLogger('earthengine-api').setLevel(logging.INFO)
     logging.getLogger('googleapiclient').setLevel(logging.ERROR)
     logging.getLogger('requests').setLevel(logging.INFO)
@@ -1201,7 +1195,7 @@ def arg_parse():
 
 if __name__ == '__main__':
     args = arg_parse()
-    # logging.basicConfig(level=args.loglevel, format='%(message)s')
+    logging.basicConfig(level=args.loglevel, format='%(message)s')
 
     # if args.key and 'FUNCTION_REGION' not in os.environ:
     if args.key:
@@ -1223,27 +1217,27 @@ if __name__ == '__main__':
     #     ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, ASSET_COLL_ID)
 
 
-    # ingest_dt_list = cimis_daily_asset_dates(
-    #     args.start, args.end, overwrite_flag=args.overwrite
-    # )
-    # # logging.info(ingest_dt_list)
-    # # input('ENTER')
-    #
-    # for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
-    #     response = cimis_daily_asset_ingest(
-    #         ingest_dt, variables=args.variables, workspace=args.workspace,
-    #         overwrite_flag=args.overwrite
-    #     )
-    #     logging.info(f'  {response}')
+    ingest_dt_list = cimis_daily_asset_dates(
+        args.start, args.end, overwrite_flag=args.overwrite
+    )
+    logging.info(ingest_dt_list)
+    input('ENTER')
+
+    for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
+        response = cimis_daily_asset_ingest(
+            ingest_dt, variables=args.variables, workspace=args.workspace,
+            overwrite_flag=args.overwrite
+        )
+        logging.info(f'  {response}')
 
 
-    from unittest.mock import Mock
-    data = {
-        'days': '60',
-        # 'start': args.start.strftime("%Y-%m-%d"),
-        # 'end': args.end.strftime("%Y-%m-%d"),
-        # 'overwrite': args.overwrite_flag,
-    }
-    req = Mock(get_json=Mock(return_value=data), args=data)
-    response = cron_scheduler(req)
-    print(response)
+    # from unittest.mock import Mock
+    # data = {
+    #     # 'days': '60',
+    #     'start': args.start.strftime("%Y-%m-%d"),
+    #     'end': args.end.strftime("%Y-%m-%d"),
+    #     # 'overwrite': args.overwrite_flag,
+    # }
+    # req = Mock(get_json=Mock(return_value=data), args=data)
+    # response = cron_scheduler(req)
+    # print(response)

@@ -12,14 +12,10 @@ from flask import abort, Response
 # import openet.core.utils as utils
 
 PROJECT_NAME = 'openet'
-# ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-#                  'projects/openet/reference_et/conus/gridmet/monthly/v1'
-# SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
-#                  'projects/openet/reference_et/conus/gridmet/daily/v1'
 ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                 'projects/openet/reference_et/gridmet/monthly'
+                'projects/openet/reference_et/conus/gridmet/monthly/v1'
 SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                 'projects/openet/reference_et/gridmet/daily'
+                 'projects/openet/reference_et/conus/gridmet/daily/v1'
 START_MONTH_OFFSET = 3
 END_MONTH_OFFSET = 0
 TODAY_DT = datetime.today()

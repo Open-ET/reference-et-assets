@@ -13,8 +13,6 @@ from flask import abort, Response
 PROJECT_NAME = 'openet'
 ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
                 'projects/openet/reference_et/conus/gridmet/daily/v1'
-# ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-#                  'projects/openet/reference_et/gridmet/daily'
 SOURCE_COLL_ID = 'IDAHO_EPSCOR/GRIDMET'
 START_DAY_OFFSET = 90
 END_DAY_OFFSET = 1
