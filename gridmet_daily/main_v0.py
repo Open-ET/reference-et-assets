@@ -187,9 +187,9 @@ def cron_scheduler(request):
         start_dt = TODAY_DT - timedelta(days=START_DAY_OFFSET)
         end_dt = TODAY_DT - timedelta(days=END_DAY_OFFSET)
 
-        # Don't let the start (or end) date be after 2023-12-31 for the v0 Collection
-        start_dt = min(start_dt, datetime.datetime(2023, 12, 31))
-        end_dt = min(end_dt, datetime.datetime(2023, 12, 31))
+        # Don't let the start (or end) date be after 2024-02-29 for the v0 Collection
+        start_dt = min(start_dt, datetime.datetime(2024, 2, 29))
+        end_dt = min(end_dt, datetime.datetime(2024, 2, 29))
         if start_dt == end_dt:
             abort(400, description='No dates to process after applying v0 date limits')
 

@@ -723,9 +723,9 @@ def cron_scheduler(request):
     # if (args['end_dt'] - args['start_dt']).days > 40:
     #     abort(400, description=f'Date range must be less than 30 days')
 
-    # Don't let the start (or end) date be after 2023-12-31 for the v0 Collection
-    args['start_dt'] = min(args['start_dt'], datetime(2023, 12, 31))
-    args['end_dt'] = min(args['end_dt'], datetime(2023, 12, 31))
+    # Don't let the start (or end) date be after 2024-02-29 for the v0 Collection
+    args['start_dt'] = min(args['start_dt'], datetime(2024, 2, 29))
+    args['end_dt'] = min(args['end_dt'], datetime(2024, 2, 29))
     if args['start_dt'] == args['end_dt']:
         abort(400, f'No dates to process after applying v0 date limits')
 

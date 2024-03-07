@@ -205,8 +205,12 @@ def cron_scheduler(request):
         start_dt = (datetime(TODAY_DT.year, TODAY_DT.month, 1) -
                     relativedelta(months=START_MONTH_OFFSET))
         end_dt = (datetime(TODAY_DT.year, TODAY_DT.month, 1) -
-                  relativedelta(days=1) - \
-                  relativedelta(days=END_MONTH_OFFSET))
+                  relativedelta(days=1) -  relativedelta(days=END_MONTH_OFFSET))
+        # Don't let the start (or end) date be after 2024-01-31 for the v0 Collection
+        start_dt = min(start_dt, datetime.datetime(2024, 2, 29))
+        end_dt = min(end_dt, datetime.datetime(2024, 2, 29))
+        if start_dt == end_dt:
+            abort(400, description='No dates to process after applying v0 date limits')
     elif start_date and end_date:
         # Only process custom range if start and end are both set
         # Limit the end date to the last full month date
