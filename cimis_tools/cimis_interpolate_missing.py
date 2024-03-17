@@ -15,8 +15,7 @@ import ee
 logging.getLogger('requests').setLevel(logging.INFO)
 logging.getLogger('urllib3').setLevel(logging.INFO)
 
-ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                'projects/openet/reference_et/cimis/daily'
+ASSET_COLL_ID = 'projects/openet/assets/reference_et/california/cimis/daily/v1'
 ASSET_DT_FMT = '%Y%m%d'
 # VARIABLES = ['eto']
 VARIABLES = ['eto', 'eto_asce', 'etr_asce']

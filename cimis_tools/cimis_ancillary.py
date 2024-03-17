@@ -25,9 +25,7 @@ PROJECT_NAME = 'openet'
 BUCKET_NAME = 'openet'
 BUCKET_FOLDER = 'cimis'
 STORAGE_CLIENT = storage.Client(project=PROJECT_NAME)
-ASSET_FOLDER = 'projects/earthengine-legacy/assets/' \
-               'projects/openet/reference_et/california/cimis/ancillary'
-# ASSET_FOLDER = 'projects/earthengine-legacy/assets/projects/openet/reference_et/cimis'
+ASSET_FOLDER = 'projects/openet/assets/reference_et/california/cimis/ancillary'
 
 
 def main(ancillary_ws, overwrite_flag=False):

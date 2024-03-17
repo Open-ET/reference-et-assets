@@ -1,6 +1,6 @@
 import argparse
 from datetime import datetime, timedelta, timezone
-import logging
+# import logging
 import os
 import re
 import time
@@ -12,10 +12,8 @@ from flask import abort, Response
 # import openet.core.utils as utils
 
 PROJECT_NAME = 'openet'
-ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                'projects/openet/reference_et/conus/gridmet/monthly/v1'
-SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                 'projects/openet/reference_et/conus/gridmet/daily/v1'
+ASSET_COLL_ID = 'projects/openet/assets/reference_et/conus/gridmet/monthly/v1'
+SOURCE_COLL_ID = 'projects/openet/assets/reference_et/conus/gridmet/daily/v1'
 START_MONTH_OFFSET = 3
 END_MONTH_OFFSET = 0
 TODAY_DT = datetime.today()
@@ -29,7 +27,6 @@ if 'FUNCTION_REGION' in os.environ:
     log_client = google.cloud.logging.Client(project=PROJECT_NAME)
     log_client.setup_logging(log_level=20)
     import logging
-    # CGM - Not sure if these lines are needed or not
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
@@ -82,7 +79,7 @@ def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
             try:
                 ee.data.deleteAsset(asset_id)
             except Exception as e:
-                return f'{export_name} - An error occured while trying to '\
+                return f'{export_name} - An error occurred while trying to '\
                        f'delete the existing asset, skipping\n{e}\n'
         else:
             return f'{export_name} - The asset already exists and overwrite '\
@@ -94,7 +91,6 @@ def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
     ]
     asset_crs = 'EPSG:4326'
     asset_dimensions = '1386x585'
-    asset_geo_str = '[' + ','.join(list(map(str, asset_geo))) + ']'
 
     source_coll = ee.ImageCollection(SOURCE_COLL_ID)\
         .filterDate(tgt_dt, tgt_dt + relativedelta(months=1))
@@ -149,7 +145,7 @@ def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
         assetId=asset_id,
         dimensions=asset_dimensions,
         crs=asset_crs,
-        crsTransform=asset_geo_str,
+        crsTransform='[' + ','.join(list(map(str, asset_geo))) + ']',
     )
 
     # Try to start the task a couple of times
@@ -205,8 +201,7 @@ def cron_scheduler(request):
         start_dt = (datetime(TODAY_DT.year, TODAY_DT.month, 1) -
                     relativedelta(months=START_MONTH_OFFSET))
         end_dt = (datetime(TODAY_DT.year, TODAY_DT.month, 1) -
-                  relativedelta(days=1) - \
-                  relativedelta(days=END_MONTH_OFFSET))
+                  relativedelta(days=1) - relativedelta(days=END_MONTH_OFFSET))
     elif start_date and end_date:
         # Only process custom range if start and end are both set
         # Limit the end date to the last full month date

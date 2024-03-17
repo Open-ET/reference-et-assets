@@ -1,7 +1,7 @@
 import argparse
 from datetime import datetime, timedelta, timezone
 import gzip
-import logging
+# import logging
 import os
 import pprint
 import re
@@ -20,8 +20,7 @@ import refet
 import requests
 from scipy import ndimage
 
-ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                'projects/openet/reference_et/california/cimis/daily/v1'
+ASSET_COLL_ID = 'projects/openet/assets/reference_et/california/cimis/daily/v1'
 ASSET_DT_FMT = '%Y%m%d'
 BUCKET_NAME = 'openet'
 BUCKET_FOLDER = 'cimis/daily'

@@ -1,7 +1,7 @@
 import argparse
 from calendar import monthrange
 from datetime import datetime, timedelta, timezone
-import logging
+# import logging
 import os
 import re
 import time
@@ -11,10 +11,8 @@ import ee
 from flask import abort, Response
 
 PROJECT_NAME = 'openet'
-ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                'projects/openet/reference_et/california/cimis/monthly/v1'
-SOURCE_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                 'projects/openet/reference_et/california/cimis/daily/v1'
+ASSET_COLL_ID = 'projects/openet/assets/reference_et/california/cimis/monthly/v1'
+SOURCE_COLL_ID = 'projects/openet/assets/reference_et/california/cimis/daily/v1'
 ASSET_DT_FMT = '%Y%m'
 START_MONTH_OFFSET = 1
 END_MONTH_OFFSET = 0
@@ -84,7 +82,7 @@ def cimis_monthly_ingest(tgt_dt, overwrite_flag=False):
             try:
                 ee.data.deleteAsset(asset_id)
             except Exception as e:
-                return f'{export_name} - An error occured while trying to '\
+                return f'{export_name} - An error occurred while trying to '\
                        f'delete the existing asset, skipping\n{e}\n'
         else:
             return f'{export_name} - The asset already exists and overwrite '\

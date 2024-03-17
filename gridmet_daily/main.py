@@ -1,6 +1,6 @@
 import argparse
 from datetime import datetime, timedelta, timezone
-import logging
+# import logging
 import os
 import re
 import time
@@ -11,8 +11,7 @@ from flask import abort, Response
 # import openet.core.utils as utils
 
 PROJECT_NAME = 'openet'
-ASSET_COLL_ID = 'projects/earthengine-legacy/assets/' \
-                'projects/openet/reference_et/conus/gridmet/daily/v1'
+ASSET_COLL_ID = 'projects/openet/assets/reference_et/conus/gridmet/daily/v1'
 SOURCE_COLL_ID = 'IDAHO_EPSCOR/GRIDMET'
 START_DAY_OFFSET = 90
 END_DAY_OFFSET = 1
@@ -27,7 +26,6 @@ if 'FUNCTION_REGION' in os.environ:
     log_client = google.cloud.logging.Client(project=PROJECT_NAME)
     log_client.setup_logging(log_level=20)
     import logging
-    # CGM - Not sure if these lines are needed or not
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
@@ -80,21 +78,15 @@ def gridmet_et_reference_bias_correct(tgt_dt, overwrite_flag=False):
             try:
                 ee.data.deleteAsset(asset_id)
             except Exception as e:
-                return f'{export_name} - An error occured while trying to '\
+                return f'{export_name} - An error occurred while trying to '\
                        f'delete the existing asset, skipping\n{e}\n'
         else:
             return f'{export_name} - The asset already exists and overwrite '\
                    f'is False, skipping\n'
 
     # Input Parameters
-    bias_eto_coll_id = (
-        'projects/earthengine-legacy/assets/'
-        'projects/openet/reference_et/gridmet/ratios/v1/monthly/eto'
-    )
-    bias_etr_coll_id = (
-        'projects/earthengine-legacy/assets/'
-        'projects/openet/reference_et/gridmet/ratios/v1/monthly/etr'
-    )
+    bias_eto_coll_id = 'projects/openet/assets/reference_et/conus/gridmet/ratios/v1/monthly/eto'
+    bias_etr_coll_id = 'projects/openet/assets/reference_et/conus/gridmet/ratios/v1/monthly/etr'
 
     asset_geo = [
         0.041666666666666664, 0, -124.78750,
@@ -102,7 +94,6 @@ def gridmet_et_reference_bias_correct(tgt_dt, overwrite_flag=False):
     ]
     asset_crs = 'EPSG:4326'
     asset_dimensions = '1386x585'
-    asset_geo_str = '[' + ','.join(list(map(str, asset_geo))) + ']'
 
     source_img = ee.Image(source_img_id)
     bias_eto_img = ee.Image(f'{bias_eto_coll_id}/{tgt_dt.strftime("%b")}')
@@ -129,7 +120,7 @@ def gridmet_et_reference_bias_correct(tgt_dt, overwrite_flag=False):
         assetId=asset_id,
         dimensions=asset_dimensions,
         crs=asset_crs,
-        crsTransform=asset_geo_str,
+        crsTransform='[' + ','.join(list(map(str, asset_geo))) + ']',
     )
 
     # Try to start the task a couple of times

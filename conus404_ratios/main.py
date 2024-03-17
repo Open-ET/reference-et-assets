@@ -29,10 +29,7 @@ def main(overwrite_flag=False):
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
 
-    asset_folder = (
-        'projects/earthengine-legacy/assets/'
-        'projects/openet/reference_et/conus/conus404/ratios/v0/monthly'
-    )
+    asset_folder = 'projects/openet/assets/reference_et/conus/conus404/ratios/v0/monthly'
     # coll_id = ''
 
     band_name = 'b1'
