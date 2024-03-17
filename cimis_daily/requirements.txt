@@ -1,10 +1,10 @@
-earthengine-api==0.1.367
+earthengine-api==0.1.392
 flask==2.3.3
-google-cloud-logging==3.6.0
-google-cloud-storage==2.10.0
-google-cloud-tasks==2.14.1
+google-cloud-logging==3.9.0
+google-cloud-storage==2.15.0
+google-cloud-tasks==2.16.3
 numpy==1.25.2
 rasterio==1.3.8
-refet==0.3.10
+refet==0.4.2
 requests==2.31.0
 scipy==1.11.2
