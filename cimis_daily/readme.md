@@ -14,7 +14,7 @@ Timestep: daily
 
 ### Reference ET
 
-ASCE Standardize Reference ET is being computed from the component variables using the Refet module (https://github.com/WSWUP/refet).  The "grass" and "aflfalfa" reference ET bands are named "eto" and "etr".
+ASCE Standardize Reference ET is being computed from the component variables using the Refet module (https://github.com/WSWUP/refet).  The "grass" and "alfalfa" reference ET bands are named "eto" and "etr".
 
 ## Availability
 
@@ -54,23 +54,9 @@ https://console.cloud.google.com/cloudtasks/queue/us-central1/ee-assets-slow/tas
 ### Deploying the cloud function
 
 Before deploying or calling the cloud functions, the "project" can be set once with the following call, or passed to each gcloud call.
+
 ```
 gcloud config set project openet
-```
-
-If testing locally, the GOOGLE_APPLICATION_CREDENTIALS environment variable will need to be set to a local copy of the project GCP key file.
-```
-# Mac/Linux
-export GOOGLE_APPLICATION_CREDENTIALS="/Users/mortonc/Projects/keys/openet-gee.json"
-
-# Windows
-# "set" will temporarily modify the current command prompts environment variables (until it is closed)
-set GOOGLE_APPLICATION_CREDENTIALS="D:/privatekey.json"
-echo %GOOGLE_APPLICATION_CREDENTIALS%
-
-# "setx" will modify the value permanently (but you may need to restart the command prompt)
-setx GOOGLE_APPLICATION_CREDENTIALS "D:/privatekey.json"
-echo %GOOGLE_APPLICATION_CREDENTIALS%
 ```
 
 The following are the parameters that were set when deploying the function for the first time.  Subsequent deployments only need the project if not set above.
@@ -81,17 +67,10 @@ gcloud functions deploy cimis-reference-et-daily-v1-scheduler --project openet -
 gcloud functions deploy cimis-reference-et-daily-v1-worker --project openet --runtime python311 --region us-central1 --entry-point cron_worker --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1 --set-env-vars FUNCTION_REGION=us-central1
 ```
 
-Pre-v1 functions
-
-```
-gcloud functions deploy cimis-reference-et-daily-scheduler --project openet --runtime python311 --region us-central1 --entry-point cron_scheduler --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1 --set-env-vars FUNCTION_REGION=us-central1
-
-gcloud functions deploy cimis-reference-et-daily-worker --project openet --runtime python311 --region us-central1 --entry-point cron_worker --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1 --set-env-vars FUNCTION_REGION=us-central1
-```
-
 ### Calling the cloud function
 
 The functions can be called by passing JSON data to the function.
+
 ```
 gcloud functions call cimis-reference-et-daily-v1-worker --project openet --data '{"date":"2020-09-01"}'
 gcloud functions call cimis-reference-et-daily-v1-scheduler --project openet --data '{"start":"2020-11-01","end":"2020-11-05"}'
@@ -99,6 +78,7 @@ gcloud functions call cimis-reference-et-daily-v1-scheduler --project openet --d
 ```
 
 If no arguments are passed to the scheduler it will check the last year for missing assets.
+
 ```
 gcloud functions call cimis-reference-et-daily-v1-scheduler --project openet
 ```
@@ -112,11 +92,13 @@ gcloud scheduler jobs update http cimis-reference-et-daily-v1 --schedule "10 12 
 ### Create tasks queue
 
 The following command was used to create a "slow" task queue that will only run one task at a time.  This was done to limit the number of simultaneous requests to Earth Engine.
+
 ```
 gcloud tasks queues create ee-single-worker --max-concurrent-dispatches=1 --max-dispatches-per-second=1 --project openet
 ```
 
 The max-burst-size parameter is not currently adjustable from the GCloud CLI, but it may be in the future.
+
 ```
 --max-burst-size=1
 ```
