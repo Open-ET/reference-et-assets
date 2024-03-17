@@ -62,9 +62,9 @@ gcloud config set project openet
 The following are the parameters that were set when deploying the function for the first time.  Subsequent deployments only need the project if not set above.
 
 ```
-gcloud functions deploy cimis-reference-et-daily-v1-scheduler --project openet --runtime python311 --region us-central1 --entry-point cron_scheduler --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1 --set-env-vars FUNCTION_REGION=us-central1
+gcloud functions deploy cimis-reference-et-daily-v1-scheduler --project openet --no-gen2 --runtime python311 --region us-central1 --entry-point cron_scheduler --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1 --set-env-vars FUNCTION_REGION=us-central1
 
-gcloud functions deploy cimis-reference-et-daily-v1-worker --project openet --runtime python311 --region us-central1 --entry-point cron_worker --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1 --set-env-vars FUNCTION_REGION=us-central1
+gcloud functions deploy cimis-reference-et-daily-v1-worker --project openet --no-gen2 --runtime python311 --region us-central1 --entry-point cron_worker --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1 --set-env-vars FUNCTION_REGION=us-central1
 ```
 
 ### Calling the cloud function
