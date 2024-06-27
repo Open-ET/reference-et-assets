@@ -111,11 +111,13 @@ def nldas_monthly_asset_export(tgt_dt, overwrite_flag=False):
     )
 
     properties = {
+        'build_date': TODAY_DT.strftime('%Y-%m-%d'),
         'date': tgt_dt.strftime("%Y-%m-%d"),
-        'date_ingested': TODAY_DT.strftime('%Y-%m-%d'),
         'eto_source_data_versions': str(eto_source_versions),
         'etr_source_data_versions': str(etr_source_versions),
         'status': 'permanent',
+        'units_eto': 'mm',
+        'units_etr': 'mm',
         # CGM: Should we use the UTC 0 time_start or the NLDAS time_start?
         'system:time_start': ee.Date(tgt_dt.strftime('%Y-%m-%d')).millis(),
         'system:index': tgt_dt.strftime('%Y%m'),

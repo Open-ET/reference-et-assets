@@ -79,7 +79,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
     ----------
     tgt_dt : datetime
     variables : list
-        Variables to process.  Choices are: 'depth', 'swe'.
+        Variables to process.  Choices are: 'eto', 'etr'.
     workspace : str
     overwrite_flag : bool, optional
 
@@ -139,6 +139,11 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
         'U2': 'U2'
     }
     gz_fmt = '{variable}.asc.gz'
+
+    var_units = {
+        'eto': 'mm',
+        'etr': 'mm',
+    }
 
     # RasterIO can't read from the bucket directly when deployed as a function
     elevation_url = 'https://storage.googleapis.com/openet/cimis/cimis_elev.tif'
@@ -429,11 +434,13 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
     logging.debug(f'  {task_id}')
 
     properties = {
-        'date_ingested': f'{TODAY_DT.strftime("%Y-%m-%d")}',
+        'build_date': f'{TODAY_DT.strftime("%Y-%m-%d")}',
         'source': SOURCE_URL.replace('https://', '').replace('http://', ''),
     }
-    # if 'eto_asce' in variables or 'etr_asce' in variables:
-    if 'eto' in variables or 'etr' in variables:
+    for v in variables:
+        if (v in var_units.keys()) and var_units[v]:
+            properties[f'units_{v}'] = var_units[v]
+    if ('eto' in variables) or ('etr' in variables):
         properties['refet_version'] = f'{refet.__version__}'
 
     # NOTE: The band names are being forced to lower case here

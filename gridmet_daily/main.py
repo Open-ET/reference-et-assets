@@ -100,19 +100,23 @@ def gridmet_et_reference_bias_correct(tgt_dt, overwrite_flag=False):
     bias_etr_img = ee.Image(f'{bias_etr_coll_id}/{tgt_dt.strftime("%b")}')
 
     properties = {
-        'system:time_start': source_img.get('system:time_start'),
-        'system:index': source_img.get('system:index'),
-        'status': source_img.get('status'),
+        'build_date': TODAY_DT.strftime('%Y-%m-%d'),
         'eto_source_data_version': bias_eto_img.get('source_data_version'),
         'etr_source_data_version': bias_etr_img.get('source_data_version'),
-        'date_ingested': TODAY_DT.strftime('%Y-%m-%d'),
+        'status': source_img.get('status'),
+        'units_eto': 'mm',
+        'units_etr': 'mm',
+        'system:time_start': source_img.get('system:time_start'),
+        'system:index': source_img.get('system:index'),
     }
 
-    output_img = ee.Image([
+    output_img = (
+        ee.Image([
             source_img.select(['eto']).multiply(bias_eto_img),
             source_img.select(['etr']).multiply(bias_etr_img),
-        ])\
+        ])
         .set(properties)
+    )
 
     export_task = ee.batch.Export.image.toAsset(
         image=output_img,

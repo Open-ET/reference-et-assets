@@ -120,12 +120,14 @@ def nldas_daily_asset(tgt_dt, overwrite_flag=False):
     refet_obj = openet.refetgee.Daily.nldas(src_coll)
 
     properties = {
+        'build_date': TODAY_DT.strftime('%Y-%m-%d'),
         'date': tgt_dt.strftime('%Y-%m-%d'),
-        'date_ingested': TODAY_DT.strftime('%Y-%m-%d'),
         # 'eto_source_data_versions': str(eto_source_versions),
         # 'etr_source_data_versions': str(etr_source_versions),
         # 'geerefet_version': openet.refetgee.__version__,
         'status': 'permanent',
+        'units_eto_asce': 'mm',
+        'units_etr_asce': 'mm',
         'system:index': tgt_dt.strftime('%Y%m%d'),
         'system:time_start': start_date.millis(),
         # 'system:time_end': end_date.millis(),

@@ -117,7 +117,7 @@ def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
         status_summary = 'permanent'
 
     properties = {
-        'date_ingested': TODAY_DT.strftime('%Y-%m-%d'),
+        'build_date': TODAY_DT.strftime('%Y-%m-%d'),
         'eto_source_data_versions': str(eto_source_versions),
         'etr_source_data_versions': str(etr_source_versions),
         'early': status['early'],
@@ -127,11 +127,13 @@ def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
         # 'early': status.get('early'),
         # 'provisional': status.get('provisional'),
         # 'permanent': status.get('permanent'),
-        # 'scale_factor': 1.0,
         'scale_factor_et_reference': 1.0,
         'scale_factor_eto': 1.0,
         'scale_factor_etr': 1.0,
         'status': status_summary,
+        # 'units_et_reference': 'mm',
+        'units_eto': 'mm',
+        'units_etr': 'mm',
         # CGM: Should we use the UTC 0 time_start or the GRIDMET time_start?
         'system:time_start': ee.Date(tgt_dt.strftime('%Y-%m-%d')).millis(),
         'system:index': tgt_dt.strftime('%Y%m'),

@@ -120,13 +120,14 @@ def cimis_monthly_ingest(tgt_dt, overwrite_flag=False):
         return f'{export_name} - too few source images ({source_count}) for month\n'
 
     properties = {
-        'date_ingested': TODAY_DT.strftime('%Y-%m-%d'),
-        # 'scale_factor': 1.0,
+        'build_date': TODAY_DT.strftime('%Y-%m-%d'),
         # TODO: Check if these property names should be changed to match the band names
         'scale_factor_et_reference': 1.0,
         'scale_factor_eto': 1.0,
         'scale_factor_etr': 1.0,
         'source_bands': ','.join(INPUT_BANDS),
+        'units_eto': 'mm',
+        'units_etr': 'mm',
         # CGM: Should we use the UTC 0 time_start or the CIMIS time_start?
         'system:time_start': ee.Date(tgt_dt.strftime('%Y-%m-%d')).millis(),
         'system:index': tgt_dt.strftime(ASSET_DT_FMT),
