@@ -137,6 +137,9 @@ dmypy.json
 # Keys
 *.json
 
-cimis_tools/ancillary
 *.asc
 *.asc.gz
+*.nc
+*.tif
+*.tif.aux.xml
+*.zip
