@@ -11,6 +11,7 @@ import zipfile
 import ee
 from google.cloud import storage
 import numpy as np
+from pyproj import Transformer
 import rasterio
 import rasterio.crs
 import rasterio.warp
@@ -119,6 +120,16 @@ def main(ancillary_ws, overwrite_flag=False):
         # Newer CIMIS images aren't using the nodata value
         mask_array = (mask_array > 0)
         mask_array = mask_array.astype(np.uint8)
+
+        # Manually set a couple of the island point mask values to 0
+        for lon, lat in [(-119.404, 34.009), (-119.042, 33.483),
+                         (-118.602, 33.0283), (-118.580, 33.027), (-118.58, 33.01)]:
+            xs, ys = transformer.transform(lon, lat)
+            x = math.floor((xs - asset_geo[2]) / asset_geo[0])
+            y = math.floor((asset_geo[5] - ys) / asset_geo[0])
+            #print(mask_array[y-1:y+2, x-1:x+2])
+            mask_array[y, x] = 0
+
         # mask_array = np.isfinite(mask_array).astype(np.uint8)
         array_to_geotiff(
             mask_array, mask_raster,
@@ -285,6 +296,8 @@ def main(ancillary_ws, overwrite_flag=False):
         #  f'gs://{BUCKET_NAME}/{BUCKET_FOLDER}/{os.path.basename(elev_raster)}', 'elev', 'mn30_grd'],
         [f'{ASSET_FOLDER}/latitude',
          f'gs://{BUCKET_NAME}/{BUCKET_FOLDER}/{os.path.basename(lat_raster)}', 'latitude', ''],
+        [f'{ASSET_FOLDER}/longitude',
+         f'gs://{BUCKET_NAME}/{BUCKET_FOLDER}/{os.path.basename(lon_raster)}', 'longitude', ''],
         [f'{ASSET_FOLDER}/mask',
          f'gs://{BUCKET_NAME}/{BUCKET_FOLDER}/{os.path.basename(mask_raster)}', 'mask', ''],
     ]
