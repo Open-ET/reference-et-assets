@@ -4,7 +4,7 @@ Spatial CIMIS is currently being ingested as Earth Engine assets using cloud fun
 
 ## Assets
 
-Collection ID: projects/openet/reference_et/california/cimis/daily/v1
+Collection ID: projects/openet/assets/reference_et/california/cimis/daily/v1
 
 Bands: eto, etr
 

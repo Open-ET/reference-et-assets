@@ -17,7 +17,7 @@ gcloud functions deploy gridmet-reference-et-monthly-v1 --project openet --no-ge
 ### Calling the cloud function
 
 ```
-gcloud functions call gridmet-reference-et-monthly-v1 --project openet -data '{"start":"2021-01-01", "end":"2021-05-31"}'
+gcloud functions call gridmet-reference-et-monthly-v1 --project openet --data '{"start":"2021-01-01", "end":"2021-05-31"}'
 ```
 
 ```

@@ -10,15 +10,15 @@ import time
 import ee
 # from osgeo import osr
 
-# logging.getLogger('earthengine-api').setLevel(logging.INFO)
-# logging.getLogger('googleapiclient').setLevel(logging.ERROR)
+logging.getLogger('earthengine-api').setLevel(logging.INFO)
+logging.getLogger('googleapiclient').setLevel(logging.ERROR)
 logging.getLogger('requests').setLevel(logging.INFO)
 logging.getLogger('urllib3').setLevel(logging.INFO)
 
 ASSET_COLL_ID = 'projects/openet/assets/reference_et/california/cimis/daily/v1'
 ASSET_DT_FMT = '%Y%m%d'
-# VARIABLES = ['eto']
-VARIABLES = ['eto', 'eto_asce', 'etr_asce']
+VARIABLES = ['eto', 'etr']
+# VARIABLES = ['eto', 'eto_asce', 'etr_asce']
 # VARIABLES = ['Tdew', 'Tx', 'Tn', 'Rnl', 'Rs', 'K', 'U2', 'ETo', 'ETo_ASCE', 'ETr_ASCE']
 
 
@@ -27,7 +27,7 @@ def main(variables, overwrite_flag=False, gee_key_file=None, ingest_flag=True):
 
     Parameters
     ----------
-    variables : str
+    variables : list
         Variables to process.
     overwrite_flag : bool, optional
         If True, overwrite existing files (the default is False).
@@ -51,6 +51,7 @@ def main(variables, overwrite_flag=False, gee_key_file=None, ingest_flag=True):
     logging.info('\nInterpolate missing CIMIS multi-band images')
 
     missing_dt_list = [
+        '2024-11-19',
         # '2021-01-14',
         # '2019-04-26',
         # '2019-12-24', '2019-12-25', '2019-12-26',
@@ -58,10 +59,11 @@ def main(variables, overwrite_flag=False, gee_key_file=None, ingest_flag=True):
     ]
     missing_dt_list = [
         datetime.datetime.strptime(date, '%Y-%m-%d')
-        for date in missing_dt_list]
+        for date in missing_dt_list
+    ]
 
-    start_dt = datetime.datetime(2018, 1, 1)
-    end_dt = datetime.datetime(2021, 12, 31)
+    start_dt = datetime.datetime(2024, 11, 1)
+    end_dt = datetime.datetime(2024, 11, 30)
 
     asset_id_re = re.compile('\w+/(?P<date>\d{8})$')
     # asset_id_re = re.compile('{}/(?P<date>\d{{8}})'.format(ASSET_COLL_ID))
@@ -120,18 +122,23 @@ def main(variables, overwrite_flag=False, gee_key_file=None, ingest_flag=True):
     logging.debug(f'Image Collection: {ASSET_COLL_ID}')
 
     # Get a list of assets that are already ingested
-    asset_coll = ee.ImageCollection(ASSET_COLL_ID)\
-        .filterDate(start_dt, end_dt + datetime.timedelta(days=1))\
+    asset_coll = (
+        ee.ImageCollection(ASSET_COLL_ID)
+        .filterDate(start_dt, end_dt + datetime.timedelta(days=1))
         .filter(ee.Filter.neq('refet_version', '0.0.0'))
+    )
     asset_dt_list = [
         datetime.datetime.strptime(image_id, ASSET_DT_FMT)
-        for image_id in asset_coll.aggregate_array('system:index').getInfo()]
+        for image_id in asset_coll.aggregate_array('system:index').getInfo()
+    ]
     # asset_id_list = get_ee_assets(
-    #     ASSET_COLL_ID, start_dt, end_dt + datetime.timedelta(days=1))
+    #     ASSET_COLL_ID, start_dt, end_dt + datetime.timedelta(days=1)
+    # )
     # asset_dt_list = [
     #     datetime.datetime.strptime(match.group('date'), ASSET_DT_FMT)
     #     for asset_id in asset_id_list
-    #     for match in [asset_id_re.search(asset_id)] if match]
+    #     for match in [asset_id_re.search(asset_id)] if match
+    # ]
 
     logging.info('\nProcessing dates')
     for upload_dt in sorted(missing_dt_list):
@@ -167,12 +174,12 @@ def main(variables, overwrite_flag=False, gee_key_file=None, ingest_flag=True):
             continue
 
         # Compute the missing image as the mean of the bracketing images
-        output_img = ee.Image(asset_prev_id).select(variables)\
+        output_img = (
+            ee.Image(asset_prev_id).select(variables)
             .add(ee.Image(asset_next_id).select(variables)
-                    .subtract(ee.Image(asset_prev_id).select(variables))\
-                    .multiply((upload_dt - asset_prev_dt) /
-                              (asset_next_dt - asset_prev_dt)))\
-            .float()\
+                 .subtract(ee.Image(asset_prev_id).select(variables))
+                 .multiply((upload_dt - asset_prev_dt) / (asset_next_dt - asset_prev_dt)))
+            .float()
             .set({
                 # 'system:index': asset_id_fmt.format(date=upload_dt.strftime(asset_dt_fmt)),
                 'system:time_start': ee.Date(upload_dt.strftime('%Y-%m-%d')).millis(),
@@ -180,19 +187,22 @@ def main(variables, overwrite_flag=False, gee_key_file=None, ingest_flag=True):
                 'refet_version': '0.0.0',
                 'source': 'interpolated',
             })
+        )
 
         # This approach only works for gaps of 1 day
         # # Compute the missing image as the mean of the bracketing images
-        # output_img = ee.Image(asset_prev_id).select(variables)\
-        #     .add(ee.Image(asset_next_id).select(variables))\
-        #     .multiply(0.5)\
-        #     .float()\
+        # output_img = (
+        #     ee.Image(asset_prev_id).select(variables)
+        #     .add(ee.Image(asset_next_id).select(variables))
+        #     .multiply(0.5)
+        #     .float()
         #     .set({
         #         # 'system:index': asset_id_fmt.format(date=upload_dt.strftime(asset_dt_fmt)),
         #         'system:time_start': ee.Date(upload_dt.strftime('%Y-%m-%d')).millis(),
         #         'date_ingested': datetime.datetime.today().strftime('%Y-%m-%d'),
         #         'refet_version': '0.0.0',
         #     })
+        # )
 
         try:
             task = ee.batch.Export.image.toAsset(
@@ -201,16 +211,18 @@ def main(variables, overwrite_flag=False, gee_key_file=None, ingest_flag=True):
                 assetId=asset_id,
                 dimensions=f'{asset_width}x{asset_height}',
                 crs=asset_proj,
-                crsTransform=asset_geo_str)
+                crsTransform=asset_geo_str,
+            )
         except Exception as e:
             logging.debug(f'  Export task not built, skipping\n  {e}')
             continue
 
         logging.info('  Starting export task')
-        ee_task_start(task, n=10)
+        ee_task_start(task, n=4)
+        logging.debug(f'    {task.id}')
 
 
-def ee_task_start(task, n=10):
+def ee_task_start(task, n=4):
     """Make an exponential backoff Earth Engine request"""
     output = None
     for i in range(1, n):
@@ -218,9 +230,10 @@ def ee_task_start(task, n=10):
             task.start()
             break
         except Exception as e:
-            logging.info(f'    Resending query ({i}/10)')
+            logging.info(f'    Resending query ({i}/{n-1})')
             logging.debug(f'    {e}')
-            time.sleep(i ** 2)
+            time.sleep(i ** 3)
+
     return task
 
 
@@ -247,7 +260,7 @@ def get_ee_assets(asset_id, start_dt=None, end_dt=None):
         params['startTime'] = start_dt.isoformat() + '.000000000Z'
         params['endTime'] = end_dt.isoformat() + '.000000000Z'
     asset_id_list = []
-    for i in range(1, 6):
+    for i in range(1, 4):
         try:
             asset_id_list = [x['id'] for x in ee.data.listImages(params)['images']]
             break
@@ -255,8 +268,8 @@ def get_ee_assets(asset_id, start_dt=None, end_dt=None):
             logging.info('  Collection or folder doesn\'t exist')
             raise sys.exit()
         except Exception as e:
-            logging.error(f'  Error getting asset list, retrying ({i}/6)\n  {e}')
-            time.sleep(i ** 2)
+            logging.error(f'  Error getting asset list, retrying ({i}/3)\n  {e}')
+            time.sleep(i ** 3)
     return asset_id_list
 
 
@@ -362,6 +375,9 @@ if __name__ == '__main__':
     args = arg_parse()
     logging.basicConfig(level=args.loglevel, format='%(message)s')
 
-    main(variables=args.variables, overwrite_flag=args.overwrite,
-         gee_key_file=args.key, ingest_flag=args.ingest,
+    main(
+        variables=args.variables,
+        overwrite_flag=args.overwrite,
+        gee_key_file=args.key,
+        ingest_flag=args.ingest,
     )

@@ -113,9 +113,6 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
     gz_vars = {
         'eto': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
         'etr': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
-        # 'eto_asce': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
-        # 'etr_asce': ['Rs', 'Tdew', 'Tn', 'Tx', 'U2'],
-        # 'eto': ['ETo'],
         'K': ['K'],
         'Rnl': ['Rnl'],
         'Rs': ['Rs'],
@@ -128,7 +125,6 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
     # Define mapping of CIMIS variables to output file names
     # For now, these need to be identical to the user variable names
     gz_remap = {
-        # 'ETo': 'eto',
         'K': 'K',
         'Rnl': 'Rnl',
         'Rs': 'Rs',
@@ -149,11 +145,11 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
     elevation_url = 'https://storage.googleapis.com/openet/cimis/cimis_elev.tif'
     land_mask_url = 'https://storage.googleapis.com/openet/cimis/cimis_mask.tif'
     latitude_url = 'https://storage.googleapis.com/openet/cimis/cimis_lat.tif'
-    # longitude_url = 'https://storage.googleapis.com/openet/cimis/cimis_lon.tif'
+    longitude_url = 'https://storage.googleapis.com/openet/cimis/cimis_lon.tif'
     elevation_path = os.path.join(date_ws, 'cimis_elev.tif')
     land_mask_path = os.path.join(date_ws, 'cimis_mask.tif')
     latitude_path = os.path.join(date_ws, 'cimis_lat.tif')
-    # longitude_path = os.path.join(date_ws, 'cimis_lon.tif')
+    longitude_path = os.path.join(date_ws, 'cimis_lon.tif')
 
     # DEADBEEF
     # # There is only partial CIMIS data before 2003-10-01
@@ -1231,11 +1227,12 @@ if __name__ == '__main__':
 
     for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
         response = cimis_daily_asset_ingest(
-            ingest_dt, variables=args.variables, workspace=args.workspace,
+            ingest_dt,
+            variables=args.variables,
+            workspace=args.workspace,
             overwrite_flag=args.overwrite
         )
         logging.info(f'  {response}')
-
 
     # from unittest.mock import Mock
     # data = {
