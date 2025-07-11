@@ -86,7 +86,7 @@ gcloud functions call cimis-reference-et-daily-v1-scheduler --project openet
 ### Scheduling the job
 
 ```
-gcloud scheduler jobs update http cimis-reference-et-daily-v1 --schedule "10 12 * * *" --uri "https://us-central1-openet.cloudfunctions.net/cimis-reference-et-daily-v1-scheduler?days=60" --description "Spatial CIMIS Daily Assets" --http-method POST --time-zone "UTC" --project openet --location us-central1 --max-retry-attempts 3 --attempt-deadline 300s --min-backoff=20s
+gcloud scheduler jobs update http cimis-reference-et-daily-v1 --schedule "10 12 * * *" --uri "https://us-central1-openet.cloudfunctions.net/cimis-reference-et-daily-v1-scheduler?days=60" --description "Spatial CIMIS Daily Assets" --http-method POST --time-zone "Etc/UTC" --project openet --location us-central1 --max-retry-attempts 3 --attempt-deadline 300s --min-backoff=20s
 ```
 
 ### Create tasks queue

@@ -29,5 +29,5 @@ gcloud functions call nldas-reference-et-monthly-v0 --project openet
 ### Scheduling the job
 
 ```
-gcloud scheduler jobs create http nldas-reference-et-monthly-v0 --schedule "5 6 5,15,25 * *" --uri "https://us-central1-openet.cloudfunctions.net/nldas-reference-et-monthly-v0" --description "Update Monthly Bias Corrected NLDAS Reference ET" --http-method POST --time-zone "UTC" --project openet --location us-central1 --max-retry-attempts 3 --attempt-deadline 300s --min-backoff=20s
+gcloud scheduler jobs create http nldas-reference-et-monthly-v0 --schedule "5 6 5,15,25 * *" --uri "https://us-central1-openet.cloudfunctions.net/nldas-reference-et-monthly-v0" --description "Update Monthly Bias Corrected NLDAS Reference ET" --http-method POST --time-zone "Etc/UTC" --project openet --location us-central1 --max-retry-attempts 3 --attempt-deadline 300s --min-backoff=20s
 ```

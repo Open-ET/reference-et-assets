@@ -348,7 +348,7 @@ def arg_valid_file(file_path):
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
-        description='Ingest CIMIS daily data into Earth Engine',
+        description='Interpolate missing CIMIS daily data',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-v', '--variables', nargs='+', metavar='VAR',
