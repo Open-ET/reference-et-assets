@@ -42,10 +42,15 @@ if 'FUNCTION_REGION' in os.environ:
     # Assume code is deployed to a cloud function
     logging.debug(f'\nInitializing GEE using application default credentials')
     import google.auth
+
     credentials, project_id = google.auth.default(
         default_scopes=['https://www.googleapis.com/auth/earthengine']
     )
-    ee.Initialize(credentials)
+    ee.Initialize(
+        credentials, project=PROJECT_NAME, opt_url='https://earthengine-highvolume.googleapis.com'
+    )
+# else:
+#     ee.Initialize()
 
 
 def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
@@ -165,7 +170,7 @@ def gridmet_monthly_asset_export(tgt_dt, overwrite_flag=False):
     return f'{export_name} - {export_task.id}\n'
 
 
-def cron_scheduler(request):
+def update(request):
     """Responds to any HTTP request.
 
     Parameters
@@ -185,21 +190,21 @@ def cron_scheduler(request):
     request_args = request.args
 
     # Default start and end date to None if not set
-    if request_json and 'start' in request_json:
+    if request_json and ('start' in request_json):
         start_date = request_json['start']
-    elif request_args and 'start' in request_args:
+    elif request_args and ('start' in request_args):
         start_date = request_args['start']
     else:
         start_date = None
 
-    if request_json and 'end' in request_json:
+    if request_json and ('end' in request_json):
         end_date = request_json['end']
-    elif request_args and 'end' in request_args:
+    elif request_args and ('end' in request_args):
         end_date = request_args['end']
     else:
         end_date = None
 
-    if not start_date and not end_date:
+    if (not start_date) and (not end_date):
         start_dt = (datetime(TODAY_DT.year, TODAY_DT.month, 1) -
                     relativedelta(months=START_MONTH_OFFSET))
         end_dt = (datetime(TODAY_DT.year, TODAY_DT.month, 1) -
@@ -237,10 +242,7 @@ def cron_scheduler(request):
     response += f'Start Date: {start_dt.strftime("%Y-%m-%d")}\n'
     response += f'End Date:   {end_dt.strftime("%Y-%m-%d")}\n'
 
-    args = {
-        'start_dt': start_dt,
-        'end_dt': end_dt,
-    }
+    args = {'start_dt': start_dt, 'end_dt': end_dt}
 
     for tgt_dt in gridmet_monthly_dates(**args):
         logging.info(f'Date: {tgt_dt.strftime("%Y-%m-%d")}')
@@ -256,9 +258,7 @@ def gridmet_monthly_dates(start_dt, end_dt, overwrite_flag=False):
     logging.debug(f'  {start_dt.strftime("%Y-%m-%d")}')
     logging.debug(f'  {end_dt.strftime("%Y-%m-%d")}')
 
-    task_id_re = re.compile(
-        'gridmet_monthly_bias_corrected_reference_et_(?P<date>\d{8})'
-    )
+    task_id_re = re.compile('gridmet_monthly_bias_corrected_reference_et_(?P<date>\d{8})')
 
     # Figure out which asset dates need to be ingested
     # Start with a list of dates to check
@@ -694,7 +694,5 @@ if __name__ == '__main__':
 
     for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
         # logging.info(f'Date: {ingest_dt.strftime("%Y-%m-%d")}')
-        response = gridmet_monthly_asset_export(
-            ingest_dt,  overwrite_flag=args.overwrite
-        )
+        response = gridmet_monthly_asset_export(ingest_dt,  overwrite_flag=args.overwrite)
         logging.info(f'  {response}')

@@ -44,7 +44,11 @@ if 'FUNCTION_REGION' in os.environ:
     credentials, project_id = google.auth.default(
         default_scopes=['https://www.googleapis.com/auth/earthengine']
     )
-    ee.Initialize(credentials)
+    ee.Initialize(
+        credentials, project=PROJECT_NAME, opt_url='https://earthengine-highvolume.googleapis.com'
+    )
+# else:
+#     ee.Initialize()
 
 
 def gridmet_et_reference_bias_correct(tgt_dt, overwrite_flag=False):
@@ -142,7 +146,7 @@ def gridmet_et_reference_bias_correct(tgt_dt, overwrite_flag=False):
     return f'{export_name} - {export_task.id}\n'
 
 
-def cron_scheduler(request):
+def update(request):
     """Responds to any HTTP request.
 
     Parameters
@@ -162,21 +166,21 @@ def cron_scheduler(request):
     request_args = request.args
 
     # Default start and end date to None if not set
-    if request_json and 'start' in request_json:
+    if request_json and ('start' in request_json):
         start_date = request_json['start']
-    elif request_args and 'start' in request_args:
+    elif request_args and ('start' in request_args):
         start_date = request_args['start']
     else:
         start_date = None
 
-    if request_json and 'end' in request_json:
+    if request_json and ('end' in request_json):
         end_date = request_json['end']
-    elif request_args and 'end' in request_args:
+    elif request_args and ('end' in request_args):
         end_date = request_args['end']
     else:
         end_date = None
 
-    if not start_date and not end_date:
+    if (not start_date) and (not end_date):
         # Process the last 90 days by default
         # response += f'Processing last {default_days} days\n'
         start_dt = TODAY_DT - timedelta(days=START_DAY_OFFSET)
@@ -209,10 +213,7 @@ def cron_scheduler(request):
     response += f'Start Date: {start_dt.strftime("%Y-%m-%d")}\n'
     response += f'End Date:   {end_dt.strftime("%Y-%m-%d")}\n'
 
-    args = {
-        'start_dt': start_dt,
-        'end_dt': end_dt,
-    }
+    args = {'start_dt': start_dt, 'end_dt': end_dt,}
 
     for tgt_dt in gridmet_dates(**args):
         logging.info(f'Date: {tgt_dt.strftime("%Y-%m-%d")}')
@@ -637,7 +638,5 @@ if __name__ == '__main__':
 
     for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
         # logging.info(f'Date: {ingest_dt.strftime("%Y-%m-%d")}')
-        response = gridmet_et_reference_bias_correct(
-            ingest_dt, overwrite_flag=args.overwrite
-        )
+        response = gridmet_et_reference_bias_correct(ingest_dt, overwrite_flag=args.overwrite)
         logging.info(f'  {response}')

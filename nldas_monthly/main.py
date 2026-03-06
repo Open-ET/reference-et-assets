@@ -60,10 +60,14 @@ if 'FUNCTION_REGION' in os.environ:
     credentials, project_id = google.auth.default(
         default_scopes=['https://www.googleapis.com/auth/earthengine']
     )
-    ee.Initialize(credentials)
+    ee.Initialize(
+        credentials, project=PROJECT_NAME, opt_url='https://earthengine-highvolume.googleapis.com'
+    )
+# else:
+#     ee.Initialize()
 
 
-def nldas_monthly_asset_export(tgt_dt, overwrite_flag=False):
+def nldas2_monthly_asset_export(tgt_dt, overwrite_flag=False):
     """
 
     Parameters
@@ -78,13 +82,13 @@ def nldas_monthly_asset_export(tgt_dt, overwrite_flag=False):
     """
 
     # tgt_date = tgt_dt.strftime('%Y%m%d')
-    logging.info(f'NLDAS Monthly Bias Corrected Reference ET - '
+    logging.info(f'NLDAS-2 Monthly Bias Corrected Reference ET - '
                  f'{tgt_dt.strftime("%Y-%m-%d")}')
-    # response = f'NLDAS Monthly Bias Corrected Reference ET - ' \
+    # response = f'NLDAS-2 Monthly Bias Corrected Reference ET - ' \
     #            f'{tgt_dt.strftime("%Y-%m")}'
 
     asset_id = f'{ASSET_COLL_ID}/{tgt_dt.strftime(ASSET_DT_FMT)}'
-    export_name = f'nldas_reference_et_monthly_{VERSION}_{tgt_dt.strftime("%Y%m%d")}'
+    export_name = f'nldas2_reference_et_monthly_{VERSION}_{tgt_dt.strftime("%Y%m%d")}'
     logging.debug(f'  {SOURCE_COLL_ID}')
     logging.debug(f'  {asset_id}')
     logging.debug(f'  {export_name}')
@@ -118,7 +122,7 @@ def nldas_monthly_asset_export(tgt_dt, overwrite_flag=False):
         'status': 'permanent',
         'units_eto': 'mm',
         'units_etr': 'mm',
-        # CGM: Should we use the UTC 0 time_start or the NLDAS time_start?
+        # CGM: Should we use the UTC 0 time_start or the NLDAS-2 time_start?
         'system:time_start': ee.Date(tgt_dt.strftime('%Y-%m-%d')).millis(),
         'system:index': tgt_dt.strftime('%Y%m'),
     }
@@ -149,7 +153,7 @@ def nldas_monthly_asset_export(tgt_dt, overwrite_flag=False):
     return f'{export_name} - {export_task.id}\n'
 
 
-def cron_scheduler(request):
+def update(request):
     """Responds to any HTTP request.
 
     Parameters
@@ -163,7 +167,7 @@ def cron_scheduler(request):
     `make_response <http://flask.pocoo.org/docs/1.0/api/#flask.Flask.make_response>`.
 
     """
-    response = 'Generate Monthly Bias Corrected NLDAS Reference ET Images\n'
+    response = 'Generate Monthly Bias Corrected NLDAS-2 Reference ET Images\n'
 
     request_json = request.get_json(silent=True)
     request_args = request.args
@@ -212,7 +216,7 @@ def cron_scheduler(request):
         # elif (end_dt - start_dt) > timedelta(days=400):
         #     abort(404, description='No more than 1 year can be processed in a single request')
         # if start_dt < datetime(1980, 1, 1):
-        #     logging.debug('Start Date: {} - no NLDAS images before '
+        #     logging.debug('Start Date: {} - no NLDAS-2 images before '
         #                   '1980-01-01'.format(start_dt.strftime('%Y-%m-%d')))
         #     start_dt = datetime(1980, 1, 1)
     else:
@@ -221,28 +225,23 @@ def cron_scheduler(request):
     response += f'Start Date: {start_dt.strftime("%Y-%m-%d")}\n'
     response += f'End Date:   {end_dt.strftime("%Y-%m-%d")}\n'
 
-    args = {
-        'start_dt': start_dt,
-        'end_dt': end_dt,
-    }
+    args = {'start_dt': start_dt, 'end_dt': end_dt}
 
-    for tgt_dt in nldas_monthly_dates(**args):
+    for tgt_dt in nldas2_monthly_dates(**args):
         logging.info(f'Date: {tgt_dt.strftime("%Y-%m-%d")}')
         # response += f'Date: {tgt_dt.strftime("%Y-%m-%d")}\n'
-        response += nldas_monthly_asset_export(tgt_dt, overwrite_flag=True)
+        response += nldas2_monthly_asset_export(tgt_dt, overwrite_flag=True)
 
     return Response(response, mimetype='text/plain')
 
 
-def nldas_monthly_dates(start_dt, end_dt, overwrite_flag=False):
+def nldas2_monthly_dates(start_dt, end_dt, overwrite_flag=False):
     """"""
-    logging.debug('\nBuilding NLDAS monthly date list')
+    logging.debug('\nBuilding NLDAS-2 monthly date list')
     logging.debug(f'  {start_dt.strftime("%Y-%m-%d")}')
     logging.debug(f'  {end_dt.strftime("%Y-%m-%d")}')
 
-    task_id_re = re.compile(
-        'nldas_monthly_bias_corrected_reference_et_(?P<date>\d{8})'
-    )
+    task_id_re = re.compile('nldas2_monthly_bias_corrected_reference_et_(?P<date>\d{8})')
 
     # Figure out which asset dates need to be ingested
     # Start with a list of dates to check
@@ -451,7 +450,7 @@ def arg_valid_file(file_path):
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
-        description='Generate monthly bias corrected NLDAS reference ET assets',
+        description='Generate monthly bias corrected NLDAS-2 reference ET assets',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--start', type=arg_valid_date, metavar='YYYY-MM-DD',
@@ -467,7 +466,7 @@ def arg_parse():
     # parser.add_argument(
     #     '-v', '--variables', nargs='+', default=VARIABLES,
     #     choices=VARIABLES, metavar='VAR',
-    #     help='NLDAS daily variables')
+    #     help='NLDAS-2 daily variables')
     parser.add_argument(
         '--key', type=arg_valid_file, metavar='FILE',
         help='Earth Engine service account JSON key file')
@@ -508,11 +507,9 @@ if __name__ == '__main__':
     #     input('Press ENTER to continue')
     #     ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, ASSET_COLL_ID)
 
-    ingest_dt_list = nldas_monthly_dates(
-args.start, args.end, overwrite_flag=args.overwrite
-    )
+    ingest_dt_list = nldas2_monthly_dates(args.start, args.end, overwrite_flag=args.overwrite)
 
     for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
         # logging.info(f'Date: {ingest_dt.strftime("%Y-%m-%d")}')
-        response = nldas_monthly_asset_export(ingest_dt,  overwrite_flag=args.overwrite)
+        response = nldas2_monthly_asset_export(ingest_dt,  overwrite_flag=args.overwrite)
         logging.info(f'  {response}')

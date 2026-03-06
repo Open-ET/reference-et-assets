@@ -67,8 +67,8 @@ if 'FUNCTION_REGION' in os.environ:
     ee.Initialize(credentials)
 
 
-def nldas_daily_asset(tgt_dt, overwrite_flag=False):
-    """Generate daily NLDAS asset for a single date
+def nldas2_daily_asset(tgt_dt, overwrite_flag=False):
+    """Generate daily NLDAS-2 asset for a single date
 
     Parameters
     ----------
@@ -81,9 +81,9 @@ def nldas_daily_asset(tgt_dt, overwrite_flag=False):
 
     """
     tgt_date = tgt_dt.strftime("%Y-%m-%d")
-    logging.info(f'Export NLDAS daily reference ET asset - {tgt_date}')
+    logging.info(f'Export NLDAS-2 daily reference ET asset - {tgt_date}')
 
-    export_name = f'nldas_reference_et_daily_{VERSION}_{tgt_dt.strftime(ASSET_DT_FMT)}'
+    export_name = f'nldas2_reference_et_daily_{VERSION}_{tgt_dt.strftime(ASSET_DT_FMT)}'
     asset_id = f'{ASSET_COLL_ID}/{tgt_dt.strftime(ASSET_DT_FMT)}'
     # logging.info(f'asset_id: {asset_id}')
 
@@ -170,7 +170,7 @@ def nldas_daily_asset(tgt_dt, overwrite_flag=False):
     return f'{export_name} - {task.id}\n'
 
 
-# def cron_worker(request):
+# def update(request):
 #     """Parse JSON or request arguments from cloud scheduler"""
 #     request_json = request.get_json(silent=True)
 #     request_args = request.args
@@ -187,11 +187,11 @@ def nldas_daily_asset(tgt_dt, overwrite_flag=False):
 #     except:
 #         abort(400, description=f'The date {tgt_date} could not be parsed')
 #
-#     return Response(nldas_daily_asset(tgt_dt), mimetype='text/plain')
+#     return Response(nldas2_daily_asset(tgt_dt), mimetype='text/plain')
 
 
-def nldas_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
-    """Identify dates of missing NLDAS daily assets
+def nldas2_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
+    """Identify dates of missing NLDAS-2 daily assets
 
     Parameters
     ----------
@@ -206,9 +206,9 @@ def nldas_daily_asset_dates(start_dt, end_dt, overwrite_flag=False):
     list : datetimes
 
     """
-    logging.info('\nBuilding NLDAS daily asset ingest date list')
+    logging.info('\nBuilding NLDAS-2 daily asset ingest date list')
 
-    task_id_re = re.compile('nldas_daily_(?P<date>\d{8})$')
+    task_id_re = re.compile('nldas2_daily_(?P<date>\d{8})$')
     asset_id_re = re.compile(ASSET_COLL_ID.split('projects/')[-1] + '/(?P<date>\d{8})$')
 
     # Figure out which asset dates nseed to be ingested
@@ -480,7 +480,7 @@ def arg_valid_date(input_date):
 def arg_parse():
     """"""
     parser = argparse.ArgumentParser(
-        description='Ingest NLDAS daily assets into Earth Engine',
+        description='Ingest NLDAS-2 daily assets into Earth Engine',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '--start', type=arg_valid_date, metavar='YYYY-MM-DD',
@@ -522,12 +522,12 @@ if __name__ == '__main__':
 
     ready_tasks = len(get_ee_tasks().keys())
 
-    ingest_dt_list = nldas_daily_asset_dates(
+    ingest_dt_list = nldas2_daily_asset_dates(
         args.start, args.end, overwrite_flag=args.overwrite
     )
 
     for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
-        response = nldas_daily_asset(ingest_dt, overwrite_flag=args.overwrite)
+        response = nldas2_daily_asset(ingest_dt, overwrite_flag=args.overwrite)
         logging.info(f'  {response}')
 
         ready_tasks += 1

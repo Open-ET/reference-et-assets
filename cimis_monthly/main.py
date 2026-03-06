@@ -48,9 +48,11 @@ if 'FUNCTION_REGION' in os.environ:
     credentials, project_id = google.auth.default(
         default_scopes=['https://www.googleapis.com/auth/earthengine']
     )
-    ee.Initialize(credentials)
-else:
-    ee.Initialize()
+    ee.Initialize(
+        credentials, project=PROJECT_NAME, opt_url='https://earthengine-highvolume.googleapis.com'
+    )
+# else:
+#     ee.Initialize()
 
 
 def cimis_monthly_ingest(tgt_dt, overwrite_flag=False):

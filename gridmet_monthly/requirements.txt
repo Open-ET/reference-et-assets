@@ -1,4 +1,4 @@
-earthengine-api==0.1.392
+earthengine-api==1.7.4
 flask==2.3.3
 google-cloud-logging==3.9.0
 python-dateutil
