@@ -16,8 +16,8 @@ SOURCE_COLL_ID = 'projects/openet/assets/reference_et/california/cimis/daily/v1'
 ASSET_DT_FMT = '%Y%m'
 START_MONTH_OFFSET = 1
 END_MONTH_OFFSET = 0
-TODAY_DT = datetime.today()
-# TODAY_DT = datetime.now(timezone=timezone.utc)
+# TODAY_DT = datetime.today()
+TODAY_DT = datetime.now(timezone=timezone.utc)
 INPUT_BANDS = ['eto', 'etr']
 OUTPUT_BANDS = ['eto', 'etr']
 
@@ -165,7 +165,7 @@ def cimis_monthly_ingest(tgt_dt, overwrite_flag=False):
     return f'{export_name} - {export_task.id}\n'
 
 
-def cron_scheduler(request):
+def update(request):
     """Responds to any HTTP request.
 
     Parameters
@@ -185,16 +185,16 @@ def cron_scheduler(request):
     request_args = request.args
 
     # Default start and end date to None if not set
-    if request_json and 'start' in request_json:
+    if request_json and ('start' in request_json):
         start_date = request_json['start']
-    elif request_args and 'start' in request_args:
+    elif request_args and ('start' in request_args):
         start_date = request_args['start']
     else:
         start_date = None
 
-    if request_json and 'end' in request_json:
+    if request_json and ('end' in request_json):
         end_date = request_json['end']
-    elif request_args and 'end' in request_args:
+    elif request_args and ('end' in request_args):
         end_date = request_args['end']
     else:
         end_date = None
@@ -302,9 +302,10 @@ def cimis_monthly_dates(start_dt, end_dt, overwrite_flag=False):
     # Bump end date for filterDate() calls
     logging.debug('\nChecking existing assets')
     filter_end_dt = end_dt + timedelta(days=1)
-    asset_date_coll = ee.ImageCollection(ASSET_COLL_ID) \
-            .filterDate(start_dt.strftime('%Y-%m-%d'),
-                        filter_end_dt.strftime('%Y-%m-%d'))
+    asset_date_coll = (
+        ee.ImageCollection(ASSET_COLL_ID)
+        .filterDate(start_dt.strftime('%Y-%m-%d'), filter_end_dt.strftime('%Y-%m-%d'))
+    )
     asset_dates = set(get_info(asset_date_coll.aggregate_array('system:index')))
     # asset_id_list = get_ee_assets(
     #     ASSET_COLL_ID, start_dt, end_dt + timedelta(days=1))
@@ -356,7 +357,7 @@ def month_range(start_dt, end_dt):
         curr_dt += relativedelta(months=1)
 
 
-def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=6):
+def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=4):
     """Return current active tasks
 
     Parameters

@@ -407,16 +407,16 @@ def gridmet_dates(start_dt, end_dt, overwrite_flag=False):
             logging.debug('  Permanent target already exists, skipping')
             # response += '  Permanent target already exists, skipping\n'
             continue
-        elif test_date in src_dates and test_date not in tgt_dates:
+        elif (test_date in src_dates) and (test_date not in tgt_dates):
             logging.debug('  New image')
             # response += '  New image\n'
         elif (test_date in src_perm_dates and
-                  (test_date in tgt_prov_dates or test_date in tgt_early_dates)):
+                  ((test_date in tgt_prov_dates) or (test_date in tgt_early_dates))):
             logging.debug('  New permanent image, overwriting')
             # response += '  New permanent image, overwriting\n'
             # CGM Delete call will be made inside main function
             # ee.data.deleteAsset(target_img_id)
-        elif test_date in src_prov_dates and test_date in tgt_early_dates:
+        elif (test_date in src_prov_dates) and (test_date in tgt_early_dates):
             logging.debug('  New provisional image, overwriting')
             # response += '  New provisional image, overwriting\n'
             # ee.data.deleteAsset(target_img_id)
@@ -461,7 +461,7 @@ def date_range(start_dt, end_dt, days=1, skip_leap_days=False):
         curr_dt += timedelta(days=days)
 
 
-def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=6):
+def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=4):
     """Return current active tasks
 
     Parameters

@@ -33,8 +33,8 @@ BIAS_ETR_COLL_ID = 'projects/dri-milkriver/assets/reference_et/nldas/ratios/v0/m
 ASSET_DT_FMT = '%Y%m%d'
 PROJECT_NAME = 'openet'
 SOURCE_COLL_ID = 'NASA/NLDAS/FORA0125_H002'
-TODAY_DT = datetime.today()
-# TODAY_DT = datetime.now(timezone=timezone.utc)
+# TODAY_DT = datetime.today()
+TODAY_DT = datetime.now(timezone=timezone.utc)
 VERSION = 'v0'
 
 

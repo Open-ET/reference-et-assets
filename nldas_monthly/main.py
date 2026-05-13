@@ -30,8 +30,8 @@ PROJECT_NAME = 'openet'
 VERSION = 'v0'
 START_MONTH_OFFSET = 3
 END_MONTH_OFFSET = 0
-TODAY_DT = datetime.today()
-# TODAY_DT = datetime.now(timezone=timezone.utc)
+# TODAY_DT = datetime.today()
+TODAY_DT = datetime.now(timezone=timezone.utc)
 
 
 if 'FUNCTION_REGION' in os.environ:
@@ -331,7 +331,7 @@ def month_range(start_dt, end_dt):
         curr_dt += relativedelta(months=1)
 
 
-def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=6):
+def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=4):
     """Return current active tasks
 
     Parameters

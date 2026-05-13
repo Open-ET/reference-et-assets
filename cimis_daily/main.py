@@ -33,8 +33,8 @@ SOURCE_URL = 'https://spatialcimis.water.ca.gov/cimis'
 STORAGE_CLIENT = storage.Client(project=PROJECT_NAME)
 START_DAY_OFFSET = 365
 END_DAY_OFFSET = 0
-TODAY_DT = datetime.today()
-# TODAY_DT = datetime.now(timezone=timezone.utc)
+# TODAY_DT = datetime.today()
+TODAY_DT = datetime.now(timezone=timezone.utc)
 VARIABLES = ['eto', 'etr']
 
 if 'FUNCTION_REGION' in os.environ:
@@ -804,7 +804,7 @@ def get_ee_assets(asset_id, start_dt=None, end_dt=None, retries=4):
     return asset_id_list
 
 
-def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=6):
+def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=4):
     """Return current active tasks
 
     Parameters

@@ -16,8 +16,8 @@ ASSET_COLL_ID = 'projects/openet/assets/reference_et/conus/gridmet/monthly/v1'
 SOURCE_COLL_ID = 'projects/openet/assets/reference_et/conus/gridmet/daily/v1'
 START_MONTH_OFFSET = 3
 END_MONTH_OFFSET = 0
-TODAY_DT = datetime.today()
-# TODAY_DT = datetime.now(timezone=timezone.utc)
+# TODAY_DT = datetime.today()
+TODAY_DT = datetime.now(timezone=timezone.utc)
 
 if 'FUNCTION_REGION' in os.environ:
     # Logging is not working correctly in cloud functions for Python 3.8+
@@ -512,7 +512,7 @@ def month_range(start_dt, end_dt):
         curr_dt += relativedelta(months=1)
 
 
-def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=6):
+def get_ee_tasks(states=['RUNNING', 'READY'], verbose=False, retries=4):
     """Return current active tasks
 
     Parameters
