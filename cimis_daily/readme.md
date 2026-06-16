@@ -52,7 +52,7 @@ https://console.cloud.google.com/cloudscheduler?project=openet
 The following are the parameters that were set when deploying the function for the first time.  Subsequent deployments only need the project if not set above.
 
 ```
-gcloud functions deploy cimis-reference-et-daily-v1 --project openet --no-gen2 --runtime python311 --region us-central1 --entry-point update --trigger-http --allow-unauthenticated --memory 512 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1 --set-env-vars FUNCTION_REGION=us-central1
+gcloud functions deploy cimis-reference-et-daily-v1 --project openet --no-gen2 --runtime python311 --region us-central1 --entry-point update --trigger-http --allow-unauthenticated --memory 1024 --timeout 240 --service-account="openet-assets-queue@openet.iam.gserviceaccount.com" --max-instances 1 --set-env-vars FUNCTION_REGION=us-central1
 ```
 
 ### Calling the cloud function
