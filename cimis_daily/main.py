@@ -17,7 +17,8 @@ import rasterio
 import rasterio.warp
 import refet
 import requests
-from scipy import ndimage
+#from scipy import ndimage
+from skimage.measure import block_reduce
 
 ASSET_COLL_ID = 'projects/openet/assets/reference_et/california/cimis/daily/v1'
 ASSET_DT_FMT = '%Y%m%d'
@@ -33,8 +34,7 @@ SOURCE_URL = 'https://spatialcimis.water.ca.gov/cimis'
 STORAGE_CLIENT = storage.Client(project=PROJECT_NAME)
 START_DAY_OFFSET = 365
 END_DAY_OFFSET = 0
-# TODAY_DT = datetime.today()
-TODAY_DT = datetime.now(timezone=timezone.utc)
+TODAY_DT = datetime.now(timezone.utc)
 VARIABLES = ['eto', 'etr']
 
 if 'FUNCTION_REGION' in os.environ:
@@ -65,10 +65,9 @@ if 'FUNCTION_REGION' in os.environ:
         default_scopes=['https://www.googleapis.com/auth/earthengine']
     )
     ee.Initialize(
-        credentials, project=PROJECT_NAME, opt_url='https://earthengine-highvolume.googleapis.com'
+        credentials, project=PROJECT_NAME,
+        # opt_url='https://earthengine-highvolume.googleapis.com'
     )
-# else:
-#     ee.Initialize()
 
 
 def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag=False):
@@ -144,11 +143,11 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
     elevation_url = 'https://storage.googleapis.com/openet/cimis/cimis_elev.tif'
     land_mask_url = 'https://storage.googleapis.com/openet/cimis/cimis_mask.tif'
     latitude_url = 'https://storage.googleapis.com/openet/cimis/cimis_lat.tif'
-    longitude_url = 'https://storage.googleapis.com/openet/cimis/cimis_lon.tif'
+    # longitude_url = 'https://storage.googleapis.com/openet/cimis/cimis_lon.tif'
     elevation_path = os.path.join(date_ws, 'cimis_elev.tif')
     land_mask_path = os.path.join(date_ws, 'cimis_mask.tif')
     latitude_path = os.path.join(date_ws, 'cimis_lat.tif')
-    longitude_path = os.path.join(date_ws, 'cimis_lon.tif')
+    # longitude_path = os.path.join(date_ws, 'cimis_lon.tif')
 
     # DEADBEEF
     # # There is only partial CIMIS data before 2003-10-01
@@ -172,11 +171,10 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
         return f'{tgt_date} - Asset already exists and overwrite is False\n'
 
     # Always overwrite temporary files if the asset doesn't exist
-    if os.path.isdir(date_ws):
+    if ('FUNCTION_REGION' in os.environ) and os.path.isdir(date_ws):
         shutil.rmtree(date_ws)
     if not os.path.isdir(date_ws):
         os.makedirs(date_ws)
-
 
     # CIMIS grid
     logging.debug('\nCIMIS')
@@ -209,6 +207,9 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
         gz_file = gz_fmt.format(variable=gz_var)
         gz_url = f'{SOURCE_URL}/{tgt_dt.strftime("%Y/%m/%d")}/{gz_file}'
         gz_path = os.path.join(date_ws, gz_file)
+        # if not overwrite_flag and os.path.isfile(gz_path):
+        if os.path.isfile(gz_path):
+            continue
         logging.debug(f'  {gz_url}')
         logging.debug(f'  {gz_path}')
         url_download(gz_url, gz_path)
@@ -256,30 +257,47 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
             output_f.close()
             input_f.close()
             del input_f, output_f
-            os.remove(gz_path)
+            if ('FUNCTION_REGION' in os.environ) and os.path.isfile(gz_path):
+                os.remove(gz_path)
         except:
             logging.error(f'  Error extracting ASCII file\n  {asc_path}')
             return f'{tgt_date} - Error extracting ASCII file\n'
 
         logging.debug('  Reading ASCII')
         output_array, output_geo = ascii_to_array(asc_path)
+        output_array[output_array == -9999] = np.nan
+        if ('FUNCTION_REGION' in os.environ) and os.path.isfile(asc_path):
+            os.remove(asc_path)
         output_shape = tuple(map(int, output_array.shape))
         logging.debug(f'    Input Shape: {output_shape}')
         logging.debug(f'    Input Geo: {output_geo}')
 
-        # In the UC Davis data some arrays have a 500m cell size
-        if output_geo[0] == 500.0 and output_geo[4] == -500.0:
+        if output_geo == (500.0, 0.0, -512000.0, 0.0, -500.0, 512000.0):
+            # The newest images have a 500m resolution and larger extent
+            # Clip down to the asset extent so the rescaling below will work correctly
+            logging.debug(f'  Clipping input {gz_var} array extent')
+            int_xi, int_yi = array_geo_offsets(full_geo=output_geo, sub_geo=asset_geo, cs=500)
+            output_array = output_array[
+                int_yi: int_yi + asset_height * 4, int_xi: int_xi + asset_width * 4
+            ]
+            output_geo = (500.0, 0.0, asset_geo[2], 0.0, -500.0, asset_geo[5])
+            output_shape = output_array.shape
+
+        # The latest images are all 500m, and in the original UC Davis data
+        #   some arrays have a 500m cell size
+        if (output_geo[0] == 500.0) and (output_geo[4] == -500.0):
             logging.info(f'  Rescaling input {gz_var} array')
-            output_array = ndimage.zoom(output_array, 0.25, order=1)
+            output_array = block_reduce(output_array, block_size=(4,4), func=np.nanmean)
+            # output_array = ndimage.zoom(output_array, 0.25, order=1)
             output_geo = (2000.0, 0.0, output_geo[2], 0.0, -2000.0, output_geo[5])
             output_shape = tuple(map(int, output_array.shape))
             logging.debug(f'    Shape: {output_array.shape}')
             logging.debug(f'    Geo: {output_geo}')
 
-        # Expand all CA DWR images up to the larger extent
-        # In the UC Davis data some arrays have a slightly smaller extent
         if (output_geo == (2000.0, 0.0, -400000.0, 0.0, -2000.0, 454000.0) or
                 output_geo == (2000.0, 0.0, -400000.0, 0.0, -2000.0, 450000.0)):
+            # Expand all CA DWR images up to the larger extent
+            # In the UC Davis data some arrays have a slightly smaller extent
             logging.debug(f'  Padding input {gz_var} array extent')
             # Assume input extent is entirely within default CIMIS extent
             int_xi, int_yi = array_geo_offsets(asset_geo, output_geo, asset_cs)
@@ -288,9 +306,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
                 (int_xi, asset_width - output_shape[1] - int_xi)
             )
             logging.debug(f'    Pad: {pad_width}')
-            output_array = np.lib.pad(
-                output_array, pad_width, 'constant', constant_values=-9999.0
-            )
+            output_array = np.lib.pad(output_array, pad_width, 'constant', constant_values=-9999)
         elif output_geo != asset_geo:
             logging.warning(f'  Unexpected input {gz_var} array transform\n'
                             f'    Shape: {output_shape}\n'
@@ -303,11 +319,10 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
         daily_arrays[gz_remap[gz_var]] = output_array
 
         del output_array
-        # DEADBEEF
-        # os.remove(asc_path)
 
-    # if 'eto_asce' in variables or 'etr_asce' in variables:
-    if 'eto' in variables or 'etr' in variables:
+
+    # if ('eto_asce' in variables) or ('etr_asce' in variables):
+    if ('eto' in variables) or ('etr' in variables):
         logging.debug('\nComputing Reference ET')
         refet_vars = {'Rs', 'Tdew', 'Tx', 'Tn', 'U2'}
         if not refet_vars.issubset(set(daily_arrays.keys())):
@@ -350,7 +365,6 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
             logging.debug(f'{variable}')
             refet_obj = refet.Daily(
                 tmin=daily_arrays['Tn'], tmax=daily_arrays['Tx'],
-                # Compute Ea from Tdew
                 ea=refet.calcs._sat_vapor_pressure(daily_arrays['Tdew']),
                 # Force solar to be >= 0
                 rs=np.maximum(daily_arrays['Rs'], 0),
@@ -370,7 +384,8 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
             # This could also be handled using the fixed ancillary mask
             # mask_array = (
             #     (tmin_array == 0) & (tmax_array == 0) &
-            #     (u2_array == 0) & (tdew_array == 0))
+            #     (u2_array == 0) & (tdew_array == 0)
+            # )
             output_array[mask_array == 0] = -9999
 
             daily_arrays[variable] = output_array
@@ -388,13 +403,21 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
 
     logging.debug('\nBuilding output GeoTIFF')
     output_ds = rasterio.open(
-        upload_path, 'w', driver='GTiff',
-        nodata=-9999, count=len(variables), dtype=rasterio.float32,
-        height=asset_height, width=asset_width,
-        crs=asset_proj, transform=asset_geo,
-        compress='lzw', tiled=True, blockxsize=256, blockysize=256,
-        # compress='deflate', tiled=True, predictor=2,
-        # compress='lzw', tiled=True, predictor=1,
+        upload_path, 'w',
+        driver='GTiff',
+        nodata=-9999,
+        count=len(variables),
+        dtype=rasterio.float32,
+        height=asset_height,
+        width=asset_width,
+        crs=asset_proj,
+        transform=asset_geo,
+        tiled=True,
+        compress='lzw',
+        blockxsize=256,
+        blockysize=256,
+        # compress='deflate', predictor=2,
+        # compress='lzw', predictor=1,
     )
 
     logging.debug('\nWriting arrays to output GeoTIFF')
@@ -419,7 +442,6 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
     logging.debug('\nUploading to bucket')
     bucket = STORAGE_CLIENT.bucket(BUCKET_NAME)
     blob = bucket.blob(f'{BUCKET_FOLDER}/{os.path.basename(bucket_path)}')
-    # blob = bucket.blob(os.path.basename(bucket_path))
     blob.upload_from_filename(upload_path)
 
 
@@ -445,12 +467,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
             {'id': v, 'tilesetId': 'image', 'tilesetBandIndex': i}
             for i, v in enumerate(variables)
         ],
-        'tilesets': [
-            {
-                'id': 'image',
-                'sources': [{'uris': [bucket_path]}]
-            }
-        ],
+        'tilesets': [{'id': 'image', 'sources': [{'uris': [bucket_path]}]}],
         'properties': properties,
         'startTime': tgt_dt.isoformat() + '.000000000Z',
         # 'pyramiding_policy': 'MEAN',
@@ -460,7 +477,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
     # TODO: Wrap in a try/except loop
     ee.data.startIngestion(task_id, params, allow_overwrite=True)
 
-    if os.path.isdir(date_ws):
+    if ('FUNCTION_REGION' in os.environ) and os.path.isdir(date_ws):
         shutil.rmtree(date_ws)
 
     return f'{tgt_date} - {asset_id}\n'
@@ -895,48 +912,6 @@ def url_download(download_url, output_path, verify=True):
             return False
 
 
-# def url_download(input_url, output_path):
-#     download_response = requests.get(input_url)
-#     if download_response.status_code != 200:
-#         logging.debug(f'  HTTP Status: {download_response.status_code}')
-#         return False
-#     with open(output_path, 'wb') as output_f:
-#         output_f.write(download_response.content)
-#     time.sleep(0.1)
-#     return True
-
-
-# def get_info(ee_obj, max_retries=4):
-#     """Make an exponential back off getInfo call on an Earth Engine object"""
-#     # output = ee_obj.getInfo()
-#     output = None
-#     for i in range(1, max_retries):
-#         try:
-#             output = ee_obj.getInfo()
-#         except ee.ee_exception.EEException as e:
-#             if ('Earth Engine memory capacity exceeded' in str(e) or
-#                     'Earth Engine capacity exceeded' in str(e) or
-#                     'Too many concurrent aggregations' in str(e) or
-#                     'Computation timed out.' in str(e)):
-#                 # TODO: Maybe add 'Connection reset by peer'
-#                 logging.info(f'    Resending query ({i}/{max_retries})')
-#                 logging.info(f'    {e}')
-#             else:
-#                 # TODO: What should happen for unhandled EE exceptions?
-#                 logging.info('    Unhandled Earth Engine exception')
-#                 logging.info(f'    {e}')
-#         except Exception as e:
-#             logging.info(f'    Resending query ({i}/{max_retries})')
-#             logging.debug(f'    {e}')
-#
-#         if output:
-#             break
-#         else:
-#             time.sleep(i ** 3)
-#
-#     return output
-
-
 def arg_valid_date(input_date):
     """Check that a date string is ISO format (YYYY-MM-DD)
 
@@ -1023,7 +998,7 @@ if __name__ == '__main__':
     args = arg_parse()
     logging.basicConfig(level=args.loglevel, format='%(message)s')
 
-    # if args.key and 'FUNCTION_REGION' not in os.environ:
+    # if args.key and ('FUNCTION_REGION' not in os.environ):
     if args.key:
         logging.info(f'\nInitializing GEE using user key file: {args.key}')
         try:
@@ -1034,19 +1009,19 @@ if __name__ == '__main__':
         logging.info('\nInitializing Earth Engine using user credentials')
         ee.Initialize()
 
-    # Build the image collection if it doesn't exist
-    logging.debug(f'Image Collection: {ASSET_COLL_ID}')
-    if not ee.data.getInfo(ASSET_COLL_ID):
-        logging.info('\nImage collection does not exist and will be built'
-                     '\n  {}'.format(ASSET_COLL_ID))
-        input('Press ENTER to continue')
-        ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, ASSET_COLL_ID)
+    # # Build the image collection if it doesn't exist
+    # logging.debug(f'Image Collection: {ASSET_COLL_ID}')
+    # if not ee.data.getInfo(ASSET_COLL_ID):
+    #     logging.info('\nImage collection does not exist and will be built'
+    #                  '\n  {}'.format(ASSET_COLL_ID))
+    #     input('Press ENTER to continue')
+    #     ee.data.createAsset({'type': 'IMAGE_COLLECTION'}, ASSET_COLL_ID)
 
     ingest_dt_list = cimis_daily_asset_dates(
         args.start, args.end, overwrite_flag=args.overwrite
     )
-    logging.info(ingest_dt_list)
-    input('ENTER')
+    # logging.info(ingest_dt_list)
+    # input('ENTER')
 
     for ingest_dt in sorted(ingest_dt_list, reverse=args.reverse):
         response = cimis_daily_asset_ingest(

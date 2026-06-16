@@ -16,8 +16,7 @@ SOURCE_COLL_ID = 'projects/openet/assets/reference_et/california/cimis/daily/v1'
 ASSET_DT_FMT = '%Y%m'
 START_MONTH_OFFSET = 1
 END_MONTH_OFFSET = 0
-# TODAY_DT = datetime.today()
-TODAY_DT = datetime.now(timezone=timezone.utc)
+TODAY_DT = datetime.now(timezone.utc)
 INPUT_BANDS = ['eto', 'etr']
 OUTPUT_BANDS = ['eto', 'etr']
 
@@ -49,7 +48,8 @@ if 'FUNCTION_REGION' in os.environ:
         default_scopes=['https://www.googleapis.com/auth/earthengine']
     )
     ee.Initialize(
-        credentials, project=PROJECT_NAME, opt_url='https://earthengine-highvolume.googleapis.com'
+        credentials, project=PROJECT_NAME,
+        # opt_url='https://earthengine-highvolume.googleapis.com'
     )
 # else:
 #     ee.Initialize()
@@ -151,7 +151,7 @@ def cimis_monthly_ingest(tgt_dt, overwrite_flag=False):
     export_task.start()
 
     # # Try to start the task a couple of times
-    # for i in range(1, 6):
+    # for i in range(1, 4):
     #     try:
     #         export_task.start()
     #         break
