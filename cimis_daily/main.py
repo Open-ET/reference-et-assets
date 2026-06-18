@@ -18,7 +18,9 @@ import rasterio.warp
 import refet
 import requests
 #from scipy import ndimage
-from skimage.measure import block_reduce
+#from skimage.measure import block_reduce
+
+from skimage_block import block_reduce
 
 ASSET_COLL_ID = 'projects/openet/assets/reference_et/california/cimis/daily/v1'
 ASSET_DT_FMT = '%Y%m%d'
@@ -287,7 +289,7 @@ def cimis_daily_asset_ingest(tgt_dt, variables, workspace='/tmp', overwrite_flag
         #   some arrays have a 500m cell size
         if (output_geo[0] == 500.0) and (output_geo[4] == -500.0):
             logging.info(f'  Rescaling input {gz_var} array')
-            output_array = block_reduce(output_array, block_size=(4,4), func=np.nanmean)
+            output_array = block_reduce(output_array, block_size=(4, 4), func=np.nanmean)
             # output_array = ndimage.zoom(output_array, 0.25, order=1)
             output_geo = (2000.0, 0.0, output_geo[2], 0.0, -2000.0, output_geo[5])
             output_shape = tuple(map(int, output_array.shape))
